@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  Die auf ClawReef aufbauende erweiterte Management-Ebene fuer den Betrieb von OpenClaw und Linux-Desktop-Runtimes im Cluster-Massstab.
+  Die weltweit erste Plattform, die speziell fuer Batch-Deployment und Betrieb von OpenClaw im Cluster-Massstab entwickelt wurde.
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ClawReef-Upgraded%20to%20ClawManager-e25544?style=for-the-badge" alt="ClawManager Upgrade" />
+  <img src="https://img.shields.io/badge/ClawManager-Virtual%20Desktop%20Platform-e25544?style=for-the-badge" alt="ClawManager Platform" />
   <img src="https://img.shields.io/badge/Go-1.21%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.21+" />
   <img src="https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React 19" />
   <img src="https://img.shields.io/badge/Kubernetes-Native-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" alt="Kubernetes Native" />
@@ -35,13 +35,13 @@
 
 ## 🚀 News
 
-- [03/20/2026] **ClawManager README-Aktualisierung** - Die Projektbeschreibung wurde auf Basis des ClawReef-Release-README neu strukturiert und um ClawManager-spezifische Funktionen erweitert, darunter Webtop-Unterstuetzung, Desktop-Portal-Zugriff, Runtime-Image-Einstellungen, OpenClaw-Speicher-/Praeferenz-Markdown-Backup und Migration, Cluster-Ressourcenuebersicht sowie mehrsprachige Dokumentation.
+- [03/20/2026] **ClawManager Neuveröffentlichung** - ClawManager ist jetzt als Virtual-Desktop-Management-Plattform veroeffentlicht und bietet Batch-Deployment, Webtop-Unterstuetzung, Desktop-Portal-Zugriff, Runtime-Image-Einstellungen, OpenClaw-Speicher-/Praeferenz-Markdown-Backup und Migration, Cluster-Ressourcenuebersicht sowie mehrsprachige Dokumentation.
 
 ## 👀 Overview
 
-ClawManager ist die weiterentwickelte Version von ClawReef. Das urspruengliche Ziel der Verwaltung virtueller Desktops auf Kubernetes bleibt erhalten, waehrend das Produkt zu einer vollstaendigeren Kontroll- und Betriebsplattform fuer Desktop-Runtimes, Benutzer-Governance und sicheren In-Cluster-Zugriff ausgebaut wurde.
+ClawManager ist eine Plattform zur Verwaltung virtueller Desktops auf Kubernetes. Sie bietet eine vollstaendige Kontroll- und Betriebsplattform fuer Desktop-Runtimes, Benutzer-Governance und sicheren In-Cluster-Zugriff.
 
-Im Vergleich zu ClawReef unterstuetzt ClawManager nicht nur das urspruengliche Instanz-Lifecycle- und Quota-Modell, sondern fuegt auch eine staerkere Admin-Konsole, proxybasierten Desktop-Zugriff, Runtime-Image-Steuerung, Cluster-Ressourcen-Transparenz sowie Backup- und Migrationsfunktionen fuer OpenClaw-Speicher und Praeferenzen hinzu.
+ClawManager vereint Batch-Deployment, Instanz-Lifecycle-Management, Admin-Konsole, proxybasierten Desktop-Zugriff, Runtime-Image-Steuerung, Cluster-Ressourcen-Transparenz sowie Backup- und Migrationsfunktionen fuer OpenClaw-Speicher und Praeferenzen in einer Plattform.
 
 ClawManager ist fuer Umgebungen gedacht, in denen:
 
@@ -52,7 +52,6 @@ ClawManager ist fuer Umgebungen gedacht, in denen:
 
 Kurz gesagt ist ClawManager:
 
-- die aufgewertete Management-Ebene von ClawReef
 - eine zentrale Betriebskonsole fuer OpenClaw- und Linux-Desktop-Runtimes
 - eine Multi-User-Desktop-Management-Plattform auf Kubernetes
 - eine sichere Zugriffsschicht fuer interne Desktop-Dienste ueber token-authentifizierte Proxys
@@ -60,6 +59,7 @@ Kurz gesagt ist ClawManager:
 ## ✨ At a Glance
 
 - Multi-Tenant-Desktop-Instanzverwaltung
+- Batch-Deployment von Desktop-Instanzen ueber Benutzer oder Runtime-Profile hinweg
 - Benutzer-Quota-Kontrolle fuer CPU, Speicher, Storage, GPU und Instanzanzahl
 - Unterstuetzung fuer OpenClaw, Webtop, Ubuntu, Debian, CentOS und benutzerdefinierte Runtimes
 - Sicherer Desktop-Proxy-Zugriff mit Token-Generierung und WebSocket-Weiterleitung
@@ -67,7 +67,11 @@ Kurz gesagt ist ClawManager:
 - Admin-Dashboards fuer Benutzer, Instanzen, Image-Karten und Cluster-Ressourcen
 - Mehrsprachige UI: Englisch, Chinesisch, Japanisch, Koreanisch und Deutsch
 
-> 🧭 Von ClawReef zu ClawManager: staerkere Admin-Kontrolle, sichererer Desktop-Zugriff und umfangreichere Runtime-Operationen.
+> 🧭 ClawManager vereint Admin-Kontrolle, sicheren Desktop-Zugriff und Runtime-Operationen in einer Kontrollplattform.
+
+<p align="center">
+  <img src="frontend/public/clawmanager_overview.png" alt="ClawManager Overview" width="100%" />
+</p>
 
 ## 📚 Table of Contents
 
@@ -88,9 +92,10 @@ Kurz gesagt ist ClawManager:
 
 ## 🆕 ClawManager New Features
 
-Dies sind die wichtigsten Ergaenzungen gegenueber ClawReef:
+Dies sind die wichtigsten Funktionen von ClawManager:
 
 - 🖥 `webtop`-Runtime-Unterstuetzung fuer browserbasierten Desktop-Zugriff
+- 📦 Batch-Deployment-Funktionen fuer grossflaechige Desktop-Bereitstellung
 - 🚪 Desktop-Portal-Seite zum Wechseln zwischen laufenden Instanzen an einem Ort
 - 🔐 Tokenbasierter Instanzzugriff und Reverse-Proxy-Routing
 - 🔄 WebSocket-Weiterleitung fuer Desktop-Sitzungen und Statusaktualisierungen
@@ -104,6 +109,7 @@ Dies sind die wichtigsten Ergaenzungen gegenueber ClawReef:
 ## 🛠 Key Features
 
 - ⚙️ Instanz-Lifecycle-Management: erstellen, starten, stoppen, neu starten, loeschen, anzeigen und erzwungen synchronisieren
+- 📦 Batch-Deployment-Unterstuetzung fuer gross angelegte Desktop-Rollouts
 - 🧱 Unterstuetzte Runtime-Typen: `openclaw`, `webtop`, `ubuntu`, `debian`, `centos`, `custom`
 - 🔒 Sicherer Desktop-Zugriff ueber authentifizierte Proxy-Endpunkte
 - 📡 WebSocket-basierte Echtzeit-Statusupdates

@@ -149,7 +149,7 @@ ClawManager includes built-in vendor templates for:
 - Zhipu AI
 - Alibaba DashScope
 - Volcengine Ark
-- Groq
+- xAI
 - Together AI
 - Fireworks AI
 - Perplexity

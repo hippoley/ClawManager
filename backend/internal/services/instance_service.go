@@ -33,20 +33,21 @@ type InstanceService interface {
 
 // CreateInstanceRequest holds data for creating an instance
 type CreateInstanceRequest struct {
-	Name               string              `json:"name" validate:"required,min=3,max=50"`
-	Description        *string             `json:"description,omitempty"`
-	Type               string              `json:"type" validate:"required,oneof=openclaw ubuntu debian centos custom webtop"`
-	CPUCores           float64             `json:"cpu_cores" validate:"required,min=0.1,max=32"`
-	MemoryGB           int                 `json:"memory_gb" validate:"required,min=1,max=128"`
-	DiskGB             int                 `json:"disk_gb" validate:"required,min=10,max=1000"`
-	GPUEnabled         bool                `json:"gpu_enabled"`
-	GPUCount           int                 `json:"gpu_count" validate:"min=0,max=4"`
-	OSType             string              `json:"os_type" validate:"required"`
-	OSVersion          string              `json:"os_version" validate:"required"`
-	ImageRegistry      *string             `json:"image_registry,omitempty"`
-	ImageTag           *string             `json:"image_tag,omitempty"`
-	StorageClass       string              `json:"storage_class"`
-	OpenClawConfigPlan *OpenClawConfigPlan `json:"openclaw_config_plan,omitempty"`
+	Name                 string              `json:"name" validate:"required,min=3,max=50"`
+	Description          *string             `json:"description,omitempty"`
+	Type                 string              `json:"type" validate:"required,oneof=openclaw ubuntu debian centos custom webtop"`
+	CPUCores             float64             `json:"cpu_cores" validate:"required,min=0.1,max=32"`
+	MemoryGB             int                 `json:"memory_gb" validate:"required,min=1,max=128"`
+	DiskGB               int                 `json:"disk_gb" validate:"required,min=10,max=1000"`
+	GPUEnabled           bool                `json:"gpu_enabled"`
+	GPUCount             int                 `json:"gpu_count" validate:"min=0,max=4"`
+	OSType               string              `json:"os_type" validate:"required"`
+	OSVersion            string              `json:"os_version" validate:"required"`
+	ImageRegistry        *string             `json:"image_registry,omitempty"`
+	ImageTag             *string             `json:"image_tag,omitempty"`
+	EnvironmentOverrides map[string]string   `json:"environment_overrides,omitempty"`
+	StorageClass         string              `json:"storage_class"`
+	OpenClawConfigPlan   *OpenClawConfigPlan `json:"openclaw_config_plan,omitempty"`
 }
 
 // UpdateInstanceRequest holds data for updating an instance
@@ -97,6 +98,14 @@ func NewInstanceService(instanceRepo repository.InstanceRepository, quotaRepo re
 func (s *instanceService) Create(userID int, req CreateInstanceRequest) (*models.Instance, error) {
 	ctx := context.Background()
 	req.Name = strings.TrimSpace(req.Name)
+	environmentOverrides, err := normalizeEnvironmentOverrides(req.EnvironmentOverrides)
+	if err != nil {
+		return nil, err
+	}
+	environmentOverridesJSON, err := marshalEnvironmentOverrides(environmentOverrides)
+	if err != nil {
+		return nil, err
+	}
 
 	// Check user quota
 	quota, err := s.quotaRepo.GetByUserID(userID)
@@ -184,24 +193,25 @@ func (s *instanceService) Create(userID int, req CreateInstanceRequest) (*models
 	// Create instance record
 	now := time.Now()
 	instance := &models.Instance{
-		UserID:        userID,
-		Name:          req.Name,
-		Description:   req.Description,
-		Type:          req.Type,
-		Status:        "creating",
-		CPUCores:      req.CPUCores,
-		MemoryGB:      req.MemoryGB,
-		DiskGB:        req.DiskGB,
-		GPUEnabled:    req.GPUEnabled,
-		GPUCount:      req.GPUCount,
-		OSType:        req.OSType,
-		OSVersion:     req.OSVersion,
-		ImageRegistry: req.ImageRegistry,
-		ImageTag:      req.ImageTag,
-		StorageClass:  req.StorageClass,
-		MountPath:     runtimeConfig.MountPath,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		UserID:                   userID,
+		Name:                     req.Name,
+		Description:              req.Description,
+		Type:                     req.Type,
+		Status:                   "creating",
+		CPUCores:                 req.CPUCores,
+		MemoryGB:                 req.MemoryGB,
+		DiskGB:                   req.DiskGB,
+		GPUEnabled:               req.GPUEnabled,
+		GPUCount:                 req.GPUCount,
+		OSType:                   req.OSType,
+		OSVersion:                req.OSVersion,
+		ImageRegistry:            req.ImageRegistry,
+		ImageTag:                 req.ImageTag,
+		EnvironmentOverridesJSON: environmentOverridesJSON,
+		StorageClass:             req.StorageClass,
+		MountPath:                runtimeConfig.MountPath,
+		CreatedAt:                now,
+		UpdatedAt:                now,
 	}
 
 	if err := s.instanceRepo.Create(instance); err != nil {
@@ -226,6 +236,11 @@ func (s *instanceService) Create(userID int, req CreateInstanceRequest) (*models
 	if err != nil {
 		s.instanceRepo.Delete(instance.ID)
 		return nil, fmt.Errorf("failed to build instance agent config: %w", err)
+	}
+	extraEnv, err := buildInstancePodEnv(instance, runtimeConfig.Env, gatewayEnv, agentEnv)
+	if err != nil {
+		s.instanceRepo.Delete(instance.ID)
+		return nil, fmt.Errorf("failed to resolve instance environment: %w", err)
 	}
 
 	var bootstrapSnapshot *models.OpenClawInjectionSnapshot
@@ -292,7 +307,7 @@ func (s *instanceService) Create(userID int, req CreateInstanceRequest) (*models
 		Image:              runtimeConfig.Image,
 		MountPath:          runtimeConfig.MountPath,
 		ContainerPort:      runtimeConfig.Port,
-		ExtraEnv:           withInstanceProxyEnv(instance.Type, instance.ID, mergeEnvMaps(runtimeConfig.Env, mergeEnvMaps(gatewayEnv, agentEnv))),
+		ExtraEnv:           extraEnv,
 		EnvFromSecretNames: []string{bootstrapSecretName},
 	}
 
@@ -438,6 +453,11 @@ func (s *instanceService) Start(instanceID int) error {
 	if err != nil {
 		return fmt.Errorf("failed to build instance agent config: %w", err)
 	}
+	runtimeConfig := buildRuntimeConfig(instance.Type, instance.OSType, instance.OSVersion, instance.ImageRegistry, instance.ImageTag)
+	extraEnv, err := buildInstancePodEnv(instance, runtimeConfig.Env, gatewayEnv, agentEnv)
+	if err != nil {
+		return fmt.Errorf("failed to resolve instance environment: %w", err)
+	}
 
 	bootstrapSecretName := ""
 	if strings.EqualFold(instance.Type, "openclaw") && s.openClawConfigService != nil && instance.OpenClawConfigSnapshotID != nil && *instance.OpenClawConfigSnapshotID > 0 {
@@ -448,7 +468,6 @@ func (s *instanceService) Start(instanceID int) error {
 	}
 
 	// Create new pod
-	runtimeConfig := buildRuntimeConfig(instance.Type, instance.OSType, instance.OSVersion, instance.ImageRegistry, instance.ImageTag)
 	if requiresRestrictedNetwork(instance.Type) {
 		if err := s.networkPolicyService.EnsureDefaultPolicy(ctx, instance.UserID, instance.ID, instance.Name); err != nil {
 			return fmt.Errorf("failed to create network policy: %w", err)
@@ -467,7 +486,7 @@ func (s *instanceService) Start(instanceID int) error {
 		Image:              runtimeConfig.Image,
 		MountPath:          instance.MountPath,
 		ContainerPort:      runtimeConfig.Port,
-		ExtraEnv:           withInstanceProxyEnv(instance.Type, instance.ID, mergeEnvMaps(runtimeConfig.Env, mergeEnvMaps(gatewayEnv, agentEnv))),
+		ExtraEnv:           extraEnv,
 		EnvFromSecretNames: []string{bootstrapSecretName},
 	}
 

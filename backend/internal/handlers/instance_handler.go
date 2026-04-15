@@ -62,21 +62,22 @@ type PublishConfigRevisionRequest struct {
 
 // CreateInstanceRequest represents a create instance request
 type CreateInstanceRequest struct {
-	Name               string                       `json:"name" binding:"required,min=3,max=50"`
-	Description        *string                      `json:"description,omitempty"`
-	Type               string                       `json:"type" binding:"required,oneof=openclaw ubuntu debian centos custom webtop"`
-	CPUCores           float64                      `json:"cpu_cores" binding:"required,min=0.1,max=32"`
-	MemoryGB           int                          `json:"memory_gb" binding:"required,min=1,max=128"`
-	DiskGB             int                          `json:"disk_gb" binding:"required,min=10,max=1000"`
-	GPUEnabled         bool                         `json:"gpu_enabled"`
-	GPUCount           int                          `json:"gpu_count" binding:"min=0,max=4"`
-	OSType             string                       `json:"os_type" binding:"required"`
-	OSVersion          string                       `json:"os_version" binding:"required"`
-	ImageRegistry      *string                      `json:"image_registry,omitempty"`
-	ImageTag           *string                      `json:"image_tag,omitempty"`
-	StorageClass       string                       `json:"storage_class"`
-	OpenClawConfigPlan *services.OpenClawConfigPlan `json:"openclaw_config_plan,omitempty"`
-	SkillIDs           []int                        `json:"skill_ids,omitempty"`
+	Name                 string                       `json:"name" binding:"required,min=3,max=50"`
+	Description          *string                      `json:"description,omitempty"`
+	Type                 string                       `json:"type" binding:"required,oneof=openclaw ubuntu debian centos custom webtop"`
+	CPUCores             float64                      `json:"cpu_cores" binding:"required,min=0.1,max=32"`
+	MemoryGB             int                          `json:"memory_gb" binding:"required,min=1,max=128"`
+	DiskGB               int                          `json:"disk_gb" binding:"required,min=10,max=1000"`
+	GPUEnabled           bool                         `json:"gpu_enabled"`
+	GPUCount             int                          `json:"gpu_count" binding:"min=0,max=4"`
+	OSType               string                       `json:"os_type" binding:"required"`
+	OSVersion            string                       `json:"os_version" binding:"required"`
+	ImageRegistry        *string                      `json:"image_registry,omitempty"`
+	ImageTag             *string                      `json:"image_tag,omitempty"`
+	EnvironmentOverrides map[string]string            `json:"environment_overrides,omitempty"`
+	StorageClass         string                       `json:"storage_class"`
+	OpenClawConfigPlan   *services.OpenClawConfigPlan `json:"openclaw_config_plan,omitempty"`
+	SkillIDs             []int                        `json:"skill_ids,omitempty"`
 }
 
 // UpdateInstanceRequest represents an update instance request
@@ -133,20 +134,21 @@ func (h *InstanceHandler) CreateInstance(c *gin.Context) {
 	}
 
 	createReq := services.CreateInstanceRequest{
-		Name:               req.Name,
-		Description:        req.Description,
-		Type:               req.Type,
-		CPUCores:           req.CPUCores,
-		MemoryGB:           req.MemoryGB,
-		DiskGB:             req.DiskGB,
-		GPUEnabled:         req.GPUEnabled,
-		GPUCount:           req.GPUCount,
-		OSType:             req.OSType,
-		OSVersion:          req.OSVersion,
-		ImageRegistry:      req.ImageRegistry,
-		ImageTag:           req.ImageTag,
-		StorageClass:       req.StorageClass,
-		OpenClawConfigPlan: req.OpenClawConfigPlan,
+		Name:                 req.Name,
+		Description:          req.Description,
+		Type:                 req.Type,
+		CPUCores:             req.CPUCores,
+		MemoryGB:             req.MemoryGB,
+		DiskGB:               req.DiskGB,
+		GPUEnabled:           req.GPUEnabled,
+		GPUCount:             req.GPUCount,
+		OSType:               req.OSType,
+		OSVersion:            req.OSVersion,
+		ImageRegistry:        req.ImageRegistry,
+		ImageTag:             req.ImageTag,
+		EnvironmentOverrides: req.EnvironmentOverrides,
+		StorageClass:         req.StorageClass,
+		OpenClawConfigPlan:   req.OpenClawConfigPlan,
 	}
 
 	instance, err := h.instanceService.Create(userID.(int), createReq)

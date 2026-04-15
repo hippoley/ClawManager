@@ -119,6 +119,7 @@ export interface CreateInstanceRequest {
   os_version: string;
   image_registry?: string;
   image_tag?: string;
+  environment_overrides?: Record<string, string>;
   storage_class?: string;
   openclaw_config_plan?: OpenClawConfigPlan;
   skill_ids?: number[];

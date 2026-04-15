@@ -22,6 +22,7 @@ type Instance struct {
 	OSVersion                string     `db:"os_version" json:"os_version"`
 	ImageRegistry            *string    `db:"image_registry" json:"image_registry,omitempty"`
 	ImageTag                 *string    `db:"image_tag" json:"image_tag,omitempty"`
+	EnvironmentOverridesJSON *string    `db:"environment_overrides_json" json:"-"`
 	StorageClass             string     `db:"storage_class" json:"storage_class"`
 	MountPath                string     `db:"mount_path" json:"mount_path"`
 	PodName                  *string    `db:"pod_name" json:"pod_name,omitempty"`

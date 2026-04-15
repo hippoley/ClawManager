@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS instances (
   os_version VARCHAR(50) NOT NULL,
   image_registry VARCHAR(255),
   image_tag VARCHAR(100),
+  environment_overrides_json LONGTEXT,
   storage_class VARCHAR(50) DEFAULT 'standard',
   mount_path VARCHAR(255) DEFAULT '/data',
   pod_name VARCHAR(255),

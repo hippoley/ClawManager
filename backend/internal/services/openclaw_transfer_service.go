@@ -30,16 +30,30 @@ func NewOpenClawTransferService() OpenClawTransferService {
 	}
 }
 
-func (s *openClawTransferService) Export(ctx context.Context, userID, instanceID int) ([]byte, error) {
-	command := []string{
-		"sh",
-		"-lc",
-		fmt.Sprintf("target_dir=${HOME:-/home/user}/%[1]s; test -d \"$target_dir\" && tar czf - -C \"${HOME:-/home/user}\" %[1]s", shellQuote(openclawConfigDirName)),
-	}
+// buildExportCommand returns the sh -lc command used to stream a gzipped
+// tarball of the .openclaw workspace from the desktop container over stdout.
+func buildExportCommand() []string {
+	script := fmt.Sprintf(
+		"target_dir=${HOME:-/home/user}/%[1]s; test -d \"$target_dir\" && tar czf - -C \"${HOME:-/home/user}\" %[1]s",
+		shellQuote(openclawConfigDirName),
+	)
+	return []string{"sh", "-lc", script}
+}
 
+// buildImportCommand returns the sh -lc command used to restore a gzipped
+// tarball of the .openclaw workspace into the desktop container from stdin.
+func buildImportCommand() []string {
+	script := fmt.Sprintf(
+		"home_dir=${HOME:-/home/user}; target_dir=\"$home_dir/%[1]s\"; rm -rf \"$target_dir\" && mkdir -p \"$home_dir\" && tar xzf - -C \"$home_dir\"",
+		shellQuote(openclawConfigDirName),
+	)
+	return []string{"sh", "-lc", script}
+}
+
+func (s *openClawTransferService) Export(ctx context.Context, userID, instanceID int) ([]byte, error) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if err := s.exec(ctx, userID, instanceID, command, nil, &stdout, &stderr); err != nil {
+	if err := s.exec(ctx, userID, instanceID, buildExportCommand(), nil, &stdout, &stderr); err != nil {
 		return nil, formatExecError("export .openclaw", err, stderr.String())
 	}
 
@@ -47,14 +61,8 @@ func (s *openClawTransferService) Export(ctx context.Context, userID, instanceID
 }
 
 func (s *openClawTransferService) Import(ctx context.Context, userID, instanceID int, archive io.Reader) error {
-	command := []string{
-		"sh",
-		"-lc",
-		fmt.Sprintf("home_dir=${HOME:-/home/user}; target_dir=\"$home_dir/%[1]s\"; rm -rf \"$target_dir\" && mkdir -p \"$home_dir\" && tar xzf - -C \"$home_dir\"", shellQuote(openclawConfigDirName)),
-	}
-
 	var stderr bytes.Buffer
-	if err := s.exec(ctx, userID, instanceID, command, archive, nil, &stderr); err != nil {
+	if err := s.exec(ctx, userID, instanceID, buildImportCommand(), archive, nil, &stderr); err != nil {
 		return formatExecError("import .openclaw", err, stderr.String())
 	}
 

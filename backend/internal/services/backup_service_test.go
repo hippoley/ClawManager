@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"clawreef/internal/models"
 )
@@ -68,6 +69,29 @@ func (r *stubBackupRepository) CountByInstanceID(instanceID int) (int, error) {
 		}
 	}
 	return count, nil
+}
+
+func (r *stubBackupRepository) ListExpired(now time.Time) ([]models.Backup, error) {
+	var result []models.Backup
+	for _, b := range r.backups {
+		if b.Status == "completed" && b.ExpiresAt != nil && b.ExpiresAt.Before(now) {
+			result = append(result, *b)
+		}
+	}
+	return result, nil
+}
+
+func (r *stubBackupRepository) GetLatestScheduledBackup(instanceID int) (*models.Backup, error) {
+	var latest *models.Backup
+	for _, b := range r.backups {
+		if b.InstanceID == instanceID && b.BackupType == "scheduled" && b.Status != "deleted" {
+			if latest == nil || b.CreatedAt.After(latest.CreatedAt) {
+				clone := *b
+				latest = &clone
+			}
+		}
+	}
+	return latest, nil
 }
 
 type stubInstanceRepository struct {

@@ -41,6 +41,10 @@ const (
 // BackupService defines the interface for instance backup operations.
 type BackupService interface {
 	CreateBackup(userID, instanceID int, name string) (*models.Backup, error)
+	// CreateScheduledBackup is called by the scheduler. It skips user-ownership
+	// checks, sets backup_type = "scheduled", and computes expires_at from
+	// retentionDays. retentionDays must be >= 1.
+	CreateScheduledBackup(instanceID int, name string, retentionDays int) (*models.Backup, error)
 	ListBackups(userID, instanceID int) ([]models.Backup, error)
 	GetBackup(userID, backupID int) (*models.Backup, error)
 	DeleteBackup(userID, backupID int) error
@@ -547,4 +551,64 @@ func (s *backupService) runDeleteJob(instance *models.Instance, backup *models.B
 	if _, err := client.Clientset.BatchV1().Jobs(namespace).Create(ctx, job, metav1.CreateOptions{}); err != nil {
 		fmt.Printf("[BackupService] Failed to create delete job for backup %d: %v\n", backup.ID, err)
 	}
+}
+
+// ---------- CreateScheduledBackup ----------
+
+// CreateScheduledBackup creates a backup on behalf of the scheduler.
+// It does NOT check user ownership (the scheduler is a system actor).
+// retentionDays must be >= 1; expires_at is set to now + retentionDays.
+func (s *backupService) CreateScheduledBackup(instanceID int, name string, retentionDays int) (*models.Backup, error) {
+	if name == "" {
+		return nil, fmt.Errorf("backup name is required")
+	}
+	if len(name) > 255 {
+		return nil, fmt.Errorf("backup name is too long")
+	}
+	if retentionDays < 1 {
+		return nil, fmt.Errorf("retention days must be at least 1")
+	}
+
+	instance, err := s.instanceRepo.GetByID(instanceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance: %w", err)
+	}
+	if instance == nil {
+		return nil, fmt.Errorf("instance not found")
+	}
+
+	// Enforce per-instance backup limit.
+	count, err := s.backupRepo.CountByInstanceID(instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if count >= maxBackupsPerInstance {
+		return nil, fmt.Errorf("backup limit reached: maximum %d backups per instance", maxBackupsPerInstance)
+	}
+
+	now := time.Now()
+	expiresAt := now.Add(time.Duration(retentionDays) * 24 * time.Hour)
+	backup := &models.Backup{
+		InstanceID: instanceID,
+		BackupName: name,
+		Status:     backupStatusCreating,
+		BackupType: backupTypeScheduled,
+		CreatedAt:  now,
+		ExpiresAt:  &expiresAt,
+	}
+
+	if err := s.backupRepo.Create(backup); err != nil {
+		return nil, err
+	}
+
+	archivePath := backupFilePath(instanceID, backup.ID)
+	backup.BackupPath = &archivePath
+
+	if err := s.backupRepo.Update(backup); err != nil {
+		return nil, err
+	}
+
+	go s.runBackupJob(instance, backup)
+
+	return backup, nil
 }

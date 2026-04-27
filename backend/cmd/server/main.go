@@ -68,6 +68,7 @@ func main() {
 	skillRepo := repository.NewSkillRepository(database)
 	securityScanRepo := repository.NewSecurityScanRepository(database)
 	backupRepo := repository.NewBackupRepository(database)
+	backupScheduleRepo := repository.NewBackupScheduleRepository(database)
 
 	if repaired, repairErr := services.RepairSeededAdminPassword(userRepo); repairErr != nil {
 		log.Printf("Warning: failed to repair seeded admin password: %v", repairErr)
@@ -107,6 +108,7 @@ func main() {
 	securityScanService := services.NewSecurityScanService(securityScanRepo, skillRepo, objectStorageService, skillScannerClient)
 	aiGatewayService := aigateway.NewService(llmModelRepo, modelInvocationService, auditEventService, costRecordService, riskDetectionService, riskHitService, chatSessionService, chatMessageService)
 	backupService := services.NewBackupService(backupRepo, instanceRepo)
+	backupScheduler := services.NewBackupScheduler(backupScheduleRepo, backupRepo, backupService)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -124,6 +126,7 @@ func main() {
 	securityHandler := handlers.NewSecurityHandler(securityScanService)
 	agentHandler := handlers.NewAgentHandler(instanceAgentService, instanceCommandService, instanceRuntimeStatusService, instanceConfigRevisionService, skillService)
 	backupHandler := handlers.NewBackupHandler(backupService)
+	backupScheduleHandler := handlers.NewBackupScheduleHandler(backupScheduleRepo)
 
 	// Initialize WebSocket hub and handler
 	wsHub := services.GetHub()
@@ -132,6 +135,9 @@ func main() {
 	// Start sync service to keep instance status in sync with K8s
 	syncService := services.NewSyncService(instanceRepo, instanceRuntimeStatusService)
 	syncService.Start()
+
+	// Start backup scheduler for scheduled backups and expiry cleanup
+	backupScheduler.Start()
 
 	// Setup router
 	r := gin.Default()
@@ -210,6 +216,10 @@ func main() {
 			instances.GET("/:id/backups/:backupId", backupHandler.GetBackup)
 			instances.DELETE("/:id/backups/:backupId", backupHandler.DeleteBackup)
 			instances.POST("/:id/backups/:backupId/restore", backupHandler.RestoreBackup)
+			instances.POST("/:id/backup-schedules", backupScheduleHandler.CreateSchedule)
+			instances.GET("/:id/backup-schedules", backupScheduleHandler.ListSchedules)
+			instances.PUT("/:id/backup-schedules/:sid", backupScheduleHandler.UpdateSchedule)
+			instances.DELETE("/:id/backup-schedules/:sid", backupScheduleHandler.DeleteSchedule)
 		}
 
 		// Admin console: cross-user instance listing. Gated by admin
@@ -404,6 +414,7 @@ func main() {
 	}
 
 	// Stop background services
+	backupScheduler.Stop()
 	syncService.Stop()
 	wsHub.Stop()
 	instanceHandler.Shutdown()

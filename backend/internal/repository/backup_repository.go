@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"time"
 
 	"clawreef/internal/models"
 
@@ -16,6 +17,10 @@ type BackupRepository interface {
 	Update(backup *models.Backup) error
 	Delete(id int) error
 	CountByInstanceID(instanceID int) (int, error)
+	// ListExpired returns completed backups whose expires_at is before now.
+	ListExpired(now time.Time) ([]models.Backup, error)
+	// GetLatestScheduledBackup returns the most recent scheduled backup for an instance, or nil.
+	GetLatestScheduledBackup(instanceID int) (*models.Backup, error)
 }
 
 type backupRepository struct {
@@ -85,3 +90,28 @@ func (r *backupRepository) CountByInstanceID(instanceID int) (int, error) {
 	return int(count), nil
 }
 
+func (r *backupRepository) ListExpired(now time.Time) ([]models.Backup, error) {
+	var backups []models.Backup
+	if err := r.sess.Collection("backups").Find(db.Cond{
+		"status":       "completed",
+		"expires_at <": now,
+	}).All(&backups); err != nil {
+		return nil, fmt.Errorf("failed to list expired backups: %w", err)
+	}
+	return backups, nil
+}
+
+func (r *backupRepository) GetLatestScheduledBackup(instanceID int) (*models.Backup, error) {
+	var backup models.Backup
+	if err := r.sess.Collection("backups").Find(db.Cond{
+		"instance_id": instanceID,
+		"backup_type": "scheduled",
+		"status <>":   "deleted",
+	}).OrderBy("-created_at").Limit(1).One(&backup); err != nil {
+		if err == db.ErrNoMoreRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get latest scheduled backup: %w", err)
+	}
+	return &backup, nil
+}

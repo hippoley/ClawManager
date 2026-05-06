@@ -107,3 +107,46 @@ func (h *AIGatewayHandler) ChatCompletions(c *gin.Context) {
 	c.Status(response.StatusCode)
 	_, _ = c.Writer.Write(response.Body)
 }
+
+// Embeddings proxies an embeddings request to the resolved provider.
+func (h *AIGatewayHandler) Embeddings(c *gin.Context) {
+	h.proxyPassthrough(c, "embeddings")
+}
+
+// ImageGenerations proxies an image generation request to the resolved provider.
+func (h *AIGatewayHandler) ImageGenerations(c *gin.Context) {
+	h.proxyPassthrough(c, "images/generations")
+}
+
+// VideoGenerations proxies a video generation request to the resolved provider.
+func (h *AIGatewayHandler) VideoGenerations(c *gin.Context) {
+	h.proxyPassthrough(c, "videos/generations")
+}
+
+func (h *AIGatewayHandler) proxyPassthrough(c *gin.Context, pathSuffix string) {
+	rawBody, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		utils.Error(c, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		utils.Error(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	response, err := h.service.ProxyPassthrough(c.Request.Context(), userID.(int), pathSuffix, rawBody)
+	if err != nil {
+		utils.HandleError(c, err)
+		return
+	}
+
+	for key, values := range response.Headers {
+		for _, value := range values {
+			c.Writer.Header().Add(key, value)
+		}
+	}
+	c.Status(response.StatusCode)
+	_, _ = c.Writer.Write(response.Body)
+}

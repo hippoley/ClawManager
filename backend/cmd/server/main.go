@@ -339,6 +339,9 @@ func main() {
 		{
 			gatewayLLM.GET("/models", aiGatewayHandler.ListModels)
 			gatewayLLM.POST("/chat/completions", aiGatewayHandler.ChatCompletions)
+			gatewayLLM.POST("/embeddings", aiGatewayHandler.Embeddings)
+			gatewayLLM.POST("/images/generations", aiGatewayHandler.ImageGenerations)
+			gatewayLLM.POST("/videos/generations", aiGatewayHandler.VideoGenerations)
 		}
 
 		agent := api.Group("/agent")

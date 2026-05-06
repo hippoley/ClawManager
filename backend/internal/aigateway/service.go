@@ -273,6 +273,10 @@ type Service interface {
 	ListAvailableModels() ([]AvailableModel, error)
 	ChatCompletions(ctx context.Context, userID int, req ChatCompletionRequest) (*ProxyResponse, string, error)
 	StreamChatCompletions(ctx context.Context, userID int, req ChatCompletionRequest, w http.ResponseWriter) (string, error)
+	// ProxyPassthrough forwards a raw request body to the provider at the given
+	// path suffix (e.g. "embeddings", "images/generations"). It resolves the
+	// model/API-key automatically and returns the provider's raw response.
+	ProxyPassthrough(ctx context.Context, userID int, pathSuffix string, rawBody []byte) (*ProxyResponse, error)
 }
 
 type service struct {
@@ -395,6 +399,69 @@ func (s *service) StreamChatCompletions(ctx context.Context, userID int, req Cha
 		})
 		return prepared.traceID, errors.New("provider type is not supported yet")
 	}
+}
+
+// ProxyPassthrough forwards a raw request to the resolved provider at the
+// given path suffix. It replaces the "model" field in the JSON body with the
+// provider's actual model name before forwarding.
+func (s *service) ProxyPassthrough(ctx context.Context, userID int, pathSuffix string, rawBody []byte) (*ProxyResponse, error) {
+	// Resolve model (use auto selection)
+	resolvedModel, err := s.selectAutoModel()
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve model for passthrough: %w", err)
+	}
+
+	// Resolve API key
+	resolvedAPIKey, err := s.secretRefService.ResolveString(ctx, resolvedModel.APIKey, resolvedModel.APIKeySecretRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve API key: %w", err)
+	}
+
+	// Optionally replace "model" field in request body with provider model name
+	body := rawBody
+	if len(body) > 0 {
+		var parsed map[string]interface{}
+		if json.Unmarshal(body, &parsed) == nil {
+			if _, hasModel := parsed["model"]; hasModel {
+				parsed["model"] = resolvedModel.ProviderModelName
+				if replaced, err := json.Marshal(parsed); err == nil {
+					body = replaced
+				}
+			}
+		}
+	}
+
+	// Build endpoint URL
+	endpoint := strings.TrimRight(strings.TrimSpace(resolvedModel.BaseURL), "/") + "/" + strings.TrimLeft(pathSuffix, "/")
+
+	// Build HTTP request
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to build passthrough request: %w", err)
+	}
+	httpRequest.Header.Set("Content-Type", "application/json")
+	httpRequest.Header.Set("Accept", "application/json")
+	if resolvedAPIKey != nil && strings.TrimSpace(*resolvedAPIKey) != "" {
+		httpRequest.Header.Set("Authorization", "Bearer "+strings.TrimSpace(*resolvedAPIKey))
+	}
+
+	// Execute request
+	response, err := s.httpClient.Do(httpRequest)
+	if err != nil {
+		return nil, fmt.Errorf("passthrough request failed: %w", err)
+	}
+	defer response.Body.Close()
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read passthrough response: %w", err)
+	}
+
+	return &ProxyResponse{
+		StatusCode: response.StatusCode,
+		Headers:    cloneProxyHeaders(response.Header),
+		Body:       responseBody,
+	}, nil
 }
 
 func (s *service) prepareChatRequest(userID int, req ChatCompletionRequest) (*preparedChatRequest, error) {

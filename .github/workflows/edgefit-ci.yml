@@ -1,0 +1,30 @@
+name: edgefit CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/edgefit/**"
+      - ".github/workflows/edgefit-ci.yml"
+  push:
+    branches:
+      - "feat/edgefit-local-model-planner"
+    paths:
+      - "tools/edgefit/**"
+      - ".github/workflows/edgefit-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/edgefit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21.x"
+      - run: gofmt -w .
+      - run: git diff --exit-code
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build -o edgefit .

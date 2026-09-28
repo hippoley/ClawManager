@@ -1,0 +1,12 @@
+[
+  {"id":"qwen2.5-3b-instruct","family":"Qwen","params_b":3.0,"active_b":3.0,"context":32768,"quality":64,"coding":66,"reasoning":58,"formats":["gguf"],"quants":["Q4_K_M","Q5_K_M","Q8_0"]},
+  {"id":"qwen2.5-7b-instruct","family":"Qwen","params_b":7.6,"active_b":7.6,"context":32768,"quality":75,"coding":77,"reasoning":70,"formats":["gguf","awq"],"quants":["Q4_K_M","Q5_K_M","Q8_0","AWQ-4bit"]},
+  {"id":"qwen2.5-coder-7b-instruct","family":"Qwen","params_b":7.6,"active_b":7.6,"context":32768,"quality":77,"coding":86,"reasoning":73,"formats":["gguf","awq"],"quants":["Q4_K_M","Q5_K_M","AWQ-4bit"]},
+  {"id":"llama-3.2-3b-instruct","family":"Llama","params_b":3.2,"active_b":3.2,"context":131072,"quality":66,"coding":61,"reasoning":59,"formats":["gguf"],"quants":["Q4_K_M","Q5_K_M","Q8_0"]},
+  {"id":"llama-3.1-8b-instruct","family":"Llama","params_b":8.0,"active_b":8.0,"context":131072,"quality":77,"coding":73,"reasoning":72,"formats":["gguf","awq"],"quants":["Q4_K_M","Q5_K_M","Q8_0","AWQ-4bit"]},
+  {"id":"mistral-7b-instruct","family":"Mistral","params_b":7.3,"active_b":7.3,"context":32768,"quality":72,"coding":70,"reasoning":67,"formats":["gguf"],"quants":["Q4_K_M","Q5_K_M","Q8_0"]},
+  {"id":"gemma-2-9b-it","family":"Gemma","params_b":9.2,"active_b":9.2,"context":8192,"quality":79,"coding":72,"reasoning":76,"formats":["gguf"],"quants":["Q4_K_M","Q5_K_M","Q8_0"]},
+  {"id":"deepseek-r1-distill-qwen-7b","family":"DeepSeek","params_b":7.6,"active_b":7.6,"context":32768,"quality":80,"coding":79,"reasoning":87,"formats":["gguf"],"quants":["Q4_K_M","Q5_K_M","Q8_0"]},
+  {"id":"deepseek-r1-distill-qwen-14b","family":"DeepSeek","params_b":14.8,"active_b":14.8,"context":32768,"quality":86,"coding":84,"reasoning":92,"formats":["gguf"],"quants":["Q4_K_M","Q5_K_M","Q8_0"]},
+  {"id":"mixtral-8x7b-instruct","family":"Mistral","params_b":46.7,"active_b":12.9,"context":32768,"quality":82,"coding":78,"reasoning":77,"formats":["gguf"],"quants":["Q4_K_M","Q5_K_M"]}
+]

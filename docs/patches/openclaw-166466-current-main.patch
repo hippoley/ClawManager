@@ -1,3 +1,24 @@
+# SUPERSEDED by upstream implementation PR #166495
+
+This artifact captured the original consumer fix for issue #166466 and was useful for establishing the
+bug shape. It is no longer the preferred implementation reference.
+
+Upstream PR #166495 (`02c316342775562101fc980b3728fab24e871c3e`) closes #166466 with a broader and
+stronger owner-level repair:
+
+- shared `hasPendingUpdateRecoverySeal()` / `assertUpdateRecoverySealComplete()` classifier;
+- discovery treats retained partial manifests as incomplete evidence;
+- baseline reuse refuses incomplete publication;
+- forward-resolution metadata access checks seal completion before and after reads;
+- candidate/prepared generations remain evidence without being promoted to verified rollback points;
+- Doctor retirement re-checks the partial immediately before authority validation and deletion;
+- duplicate OpenClaw publication ownership is removed in favor of the fs-safe 0.24.2 publisher.
+
+Keep this file only as provenance for the earlier #166466 handoff. Do not recommend applying this
+older patch over #166495.
+
+---
+
 diff --git a/src/infra/update-recovery-capture-publication.ts b/src/infra/update-recovery-capture-publication.ts
 --- a/src/infra/update-recovery-capture-publication.ts
 +++ b/src/infra/update-recovery-capture-publication.ts

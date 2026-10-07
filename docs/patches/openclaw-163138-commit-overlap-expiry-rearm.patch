@@ -1,0 +1,23 @@
+diff --git a/src/gateway/question-manager.ts b/src/gateway/question-manager.ts
+--- a/src/gateway/question-manager.ts
++++ b/src/gateway/question-manager.ts
+@@
+   private expireScheduled(id: string): Promise<void> | void {
+     const entry = this.entries.get(id);
+-    if (!entry || entry.record.status !== "pending" || entry.committing) {
++    if (!entry || entry.record.status !== "pending") {
+       return this.drain();
+     }
+     const remainingMs = entry.expiresAtMonotonicMs - this.scheduler.monotonicNow();
+     if (remainingMs > 0) {
+       // Wall clock jumped forward; the monotonic deadline has not passed.
+@@
+       });
+       return this.drain();
+     }
++    if (entry.committing) {
++      return this.drain();
++    }
+     this.expire(id);
+     return this.drain();
+   }

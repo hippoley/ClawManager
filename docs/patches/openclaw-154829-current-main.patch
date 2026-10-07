@@ -1,5 +1,5 @@
 From: hippoley
-Subject: [PATCH PROPOSAL] doctor: keep disk-space lint on operator source env
+Subject: [PATCH PROPOSAL v2] doctor: keep disk-space lint on operator source env
 
 Current-main proposal for OpenClaw PR #154829.
 
@@ -7,7 +7,8 @@ This patch is intentionally narrow:
 - keep ordinary no-argument disk-space callers unchanged;
 - allow structured findings to resolve from an explicit env;
 - pass Doctor health-check ctx.env at the registration boundary;
-- do not mutate process.env or weaken plugin-state isolation.
+- do not mutate process.env or weaken plugin-state isolation;
+- add both collector-level and real selected-check mixed-volume regressions.
 
 diff --git a/src/commands/doctor-disk-space.ts b/src/commands/doctor-disk-space.ts
 --- a/src/commands/doctor-disk-space.ts
@@ -57,6 +58,7 @@ diff --git a/src/commands/doctor-disk-space.test.ts b/src/commands/doctor-disk-s
 @@
  describe("collectDiskSpaceHealthFindings", () => {
 +  it("uses an explicit source env instead of ambient state-dir resolution", () => {
++    vi.stubEnv("OPENCLAW_STATE_DIR", "/private/plugin-snapshot");
 +    const readDiskSpace = vi.spyOn(diskSpace, "tryReadDiskSpace").mockReturnValue({
 +      availableBytes: 50 * 1024 * 1024,
 +      targetPath: "/operator/.openclaw",
@@ -83,18 +85,78 @@ diff --git a/src/commands/doctor-disk-space.test.ts b/src/commands/doctor-disk-s
      expect(collectFindingsAt(0)).toEqual([
        expect.objectContaining({ target: "0 B", requirement: "critical-free-space" }),
 
-Recommended integration regression:
-- select core/doctor/disk-space together with one isolated plugin check;
-- give source env and private plugin snapshot different OPENCLAW_STATE_DIR values;
-- assert disk-space probes the source/operator directory;
-- assert the plugin check remains inside its private state snapshot;
-- preserve source SQLite bytes before/after.
+diff --git a/src/commands/doctor-lint.test.ts b/src/commands/doctor-lint.test.ts
+--- a/src/commands/doctor-lint.test.ts
++++ b/src/commands/doctor-lint.test.ts
+@@
+ import { recordDeferredPluginMigrations } from "../infra/deferred-plugin-migrations.js";
++import * as diskSpace from "../infra/disk-space.js";
+ import { resolveExistingSqliteFileUri } from "../infra/node-sqlite.js";
+@@
+   it("keeps mixed selected checks on an isolated plugin metadata view", async () => {
+@@
+     const inspectSourceConfig = vi.fn(async (ctx: { cfg: OpenClawConfig }) => {
+       expect(ctx.cfg.agents?.defaults?.workspace).toBe(path.join(stateDir, "workspace"));
+       return [];
+     });
++    const diskProbePaths: string[] = [];
++    vi.spyOn(diskSpace, "tryReadDiskSpace").mockImplementation((targetPath) => {
++      diskProbePaths.push(targetPath);
++      return {
++        availableBytes: 10 * 1024 * 1024 * 1024,
++        targetPath,
++        checkedPath: targetPath,
++        totalBytes: null,
++      };
++    });
+     registerHealthCheck({
+       id: "test/source-config-interpolation",
+       kind: "plugin",
+       description: "checks source-path interpolation",
+       detect: inspectSourceConfig,
+@@
+           onlyIds: [
+             "memory-core/managed-local-embedding-setup",
+             "test/source-config-interpolation",
++            "core/doctor/disk-space",
+           ],
+         }),
+       ).resolves.toBe(0);
+       expect(JSON.parse(String(stdout.mock.calls.at(-1)?.[0]))).toMatchObject({
+         ok: true,
+-        checksRun: 2,
++        checksRun: 3,
+         findings: [],
+       });
+       expect(inspectSourceConfig).toHaveBeenCalledOnce();
++      expect(diskProbePaths).toContain(stateDir);
+       expect(mocks.readConfigFileSnapshot).not.toHaveBeenCalled();
+       expect(sourceOpenStacks).toEqual([]);
+       expect(snapshotDoctorLintSqliteFamily(databasePath)).toEqual(before);
+
+Validation:
+
+  node scripts/run-vitest.mjs src/commands/doctor-disk-space.test.ts --run
+  node scripts/run-vitest.mjs src/commands/doctor-lint.test.ts --run
+
+Why the integration case matters:
+- the collector unit case proves explicit env beats ambient process.env;
+- the selected-check case proves the registered contribution receives operator/source env while plugin inspection remains isolated;
+- source SQLite bytes remain unchanged.
 
 Compatibility:
 - no config key change;
 - no persisted schema change;
 - no migration/backfill;
+- no state write;
 - noteDiskSpace() keeps its existing ambient process.env behavior;
 - only the structured Doctor health-check path gains explicit source-env ownership.
+
+Self-check notes (2026-10-07):
+- current doctor-disk-space.test.ts already imports * as diskSpace and spies on tryReadDiskSpace;
+- tryReadDiskSpace(targetPath: string) returns the exact snapshot shape used above;
+- current helper signatures accept resolveRequiredHomeDir(env, os.homedir) and resolveStateDir(env, homedir);
+- current mixed-selected-check test already owns stateDir/databasePath/sourceOpenStacks and source SQLite preservation assertions;
+- this artifact remains source-reviewed, not executed.
 
 Status: source-reviewed against current main on 2026-10-07; not executed locally because the connected GitHub account has pull-only access to openclaw/openclaw and no writable fork is available through the current connector.

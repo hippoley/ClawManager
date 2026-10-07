@@ -137,126 +137,122 @@ thinkingExplicit: params.thinkingExplicit,
 
 Fallback candidates may recompute `candidateThinkLevel`, but they should retain the admitted turn's `thinkingExplicit` bit. A fallback model change does not retroactively turn an inherited default into a user/config choice.
 
-### 4. Carry it into the agent session without modifying AgentState or llm-core
+### 4. Carry it into the session through the existing stream closure
 
-Add an optional field to `CreateAgentSessionOptions` / `AgentSessionConfig`:
+The smallest implementation does **not** need to modify `AgentState`, `AgentOptions`,
+`AgentLoopConfig`, or `llm-core/SimpleStreamOptions`.
 
-```ts
-thinkingExplicit?: boolean;
-```
-
-In `prepareEmbeddedAttemptAgentSession`:
+`createAgentSession()` already supplies a custom `streamFn` closure to `Agent`:
 
 ```ts
-const sessionOptions: CreateAgentSessionOptions = {
+streamFn: async (modelResult, context, optionsLocal) => {
   ...
-  thinkingLevel: input.agentCoreThinkingLevel,
-  thinkingExplicit: attempt.thinkingExplicit,
-  ...
-};
+  return modelRegistryRuntime.llmRuntime.streamSimple(modelResult, context, {
+    ...optionsLocal,
+    ...
+  });
+}
 ```
 
-Do **not** add this to `AgentState`: it is request provenance, not mutable conversational state.
+That closure can capture one new run/session option directly.
 
-Instead add the bit to the internal agent-loop configuration:
-
-`packages/agent-core/src/types.ts`
+In `src/agents/sessions/sdk.ts`, extend only `CreateAgentSessionOptions`:
 
 ```diff
- export interface AgentLoopConfig extends SimpleStreamOptions {
-   model: Model;
-   thinkingLevel?: ThinkingLevel;
+ export interface CreateAgentSessionOptions extends Omit<
+   AgentSessionConfig,
+   "agent" | "cwd" | "extensionRunnerRef" | "allowedToolNames"
+ > {
 +  /** Whether the admitted turn/session/config explicitly selected thinking. */
 +  thinkingExplicit?: boolean;
    ...
  }
 ```
 
-`packages/agent-core/src/agent.ts`
+In `prepareEmbeddedAttemptAgentSession`:
 
 ```diff
- export interface AgentOptions {
+ const sessionOptions: CreateAgentSessionOptions = {
    ...
-+  /** Run-scoped provenance for the selected thinking level. */
-+  thinkingExplicit?: boolean;
- }
-@@
- export class Agent {
-+  public thinkingExplicit?: boolean;
-@@
-   constructor(options: AgentOptions = {}) {
-     ...
-+    this.thinkingExplicit = options.thinkingExplicit;
-   }
-@@
-   private createLoopConfig(...): AgentLoopConfig {
-     return {
-       model: this.mutableState.model,
-       thinkingLevel: this.mutableState.thinkingLevel,
-+      thinkingExplicit: this.thinkingExplicit,
-       reasoning: resolveAgentReasoningOption(...),
-       ...
-     };
-   }
+   thinkingLevel: input.agentCoreThinkingLevel,
++  thinkingExplicit: attempt.thinkingExplicit,
+   ...
+ };
 ```
 
-`createAgentSession()` passes:
+Then use a narrow local provider-options extension in the `createAgentSession()` stream closure:
 
 ```ts
-const agent = new Agent({
-  ...
-  thinkingExplicit: options.thinkingExplicit,
-  ...
-});
+type ThinkingProvenanceStreamOptions = SimpleStreamOptions & {
+  thinkingExplicit?: boolean;
+};
 ```
 
-This is sufficient because `streamAgentResponse()` already calls the provider with:
+and:
 
-```ts
-streamFunction(config.model, llmContext, {
-  ...config,
-  apiKey: resolvedApiKey,
-  ...
-});
+```diff
+- return modelRegistryRuntime.llmRuntime.streamSimple(modelResult, context, {
++ const providerOptions: ThinkingProvenanceStreamOptions = {
+    ...optionsLocal,
++   thinkingExplicit: options.thinkingExplicit,
+    apiKey: auth.apiKey,
+    timeoutMs: optionsLocal?.timeoutMs ?? providerRetrySettings.timeoutMs,
+    maxRetryDelayMs: optionsLocal?.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
+    headers:
+      attributionHeaders || auth.headers || optionsLocal?.headers
+        ? { ...attributionHeaders, ...auth.headers, ...optionsLocal?.headers }
+        : undefined,
+- });
++ };
++ return modelRegistryRuntime.llmRuntime.streamSimple(
++   modelResult,
++   context,
++   providerOptions,
++ );
 ```
 
-so the run-scoped bit reaches the provider wrapper at runtime without changing the shared `llm-core/SimpleStreamOptions` contract.
+Because TypeScript is structurally typed, the extended object remains assignable to
+`SimpleStreamOptions`; the extra property is retained at runtime for the OpenAI wrapper.
+
+This is strictly run-scoped request provenance. It never enters:
+- `AgentState`;
+- the transcript;
+- session metadata;
+- model catalog state;
+- persisted config.
 
 ### 5. Read the provenance only in the OpenAI/Qwen wrapper
 
-Do **not** add `thinkingExplicit` to `packages/llm-core/src/types.ts`. That would unnecessarily expand the shared LLM SDK API for a provider-specific serialization compatibility rule.
+Do **not** add `thinkingExplicit` to `packages/llm-core/src/types.ts`.
 
-In `packages/ai/src/providers/openai-completions.ts`, use a narrow internal intersection:
+In `packages/ai/src/providers/openai-completions.ts`, read the runtime extra field through the
+same narrow intersection:
 
 ```ts
 type OpenAIThinkingProvenanceOptions = SimpleStreamOptions & {
   thinkingExplicit?: boolean;
 };
 
-export const streamSimpleOpenAICompletions = (...) => {
-  ...
-  const thinkingExplicit =
-    (options as OpenAIThinkingProvenanceOptions | undefined)?.thinkingExplicit;
-
-  return streamOpenAICompletions(model, context, {
-    ...base,
-    reasoningEffort: clampedReasoning,
-    toolChoice,
-    thinkingExplicit,
-  } as OpenAICompletionsOptions & { thinkingExplicit?: boolean });
-};
+const thinkingExplicit =
+  (options as OpenAIThinkingProvenanceOptions | undefined)?.thinkingExplicit;
 ```
 
-At the transport owner, read the same narrow extension and pass it to the shared chat-template helper. One clean shape is:
+Pass it forward as an internal extra property when invoking the concrete
+`OpenAICompletionsOptions` path:
 
 ```ts
-type ReasoningWithSelectionProvenance =
-  ReturnType<typeof resolveOpenAIRequestReasoning> & {
-    thinkingExplicit?: boolean;
-  };
+const requestOptions = {
+  ...base,
+  reasoningEffort: clampedReasoning,
+  toolChoice,
+  thinkingExplicit,
+} as OpenAICompletionsOptions & { thinkingExplicit?: boolean };
+
+return streamOpenAICompletions(model, context, requestOptions);
 ```
 
-Then:
+At the transport owner, read that same narrow extension and combine it with the existing
+`resolveOpenAIRequestReasoning(...)` result:
 
 ```ts
 const reasoning = {
@@ -267,7 +263,7 @@ const reasoning = {
 };
 ```
 
-and tighten only the Qwen chat-template helper:
+Then tighten only the Qwen chat-template helper:
 
 ```ts
 export function resolveChatTemplateReasoningEffort(
@@ -286,13 +282,42 @@ export function resolveChatTemplateReasoningEffort(
 }
 ```
 
-Both managed and direct Chat Completions paths already call this helper, so the same provenance gate applies to both transports.
+Both managed and direct Chat Completions paths already consume this shared helper, so one
+provenance-aware gate covers both transports.
 
-This keeps the compatibility bit:
-- out of persisted state;
-- out of `AgentState`;
-- out of the shared `llm-core` API;
-- scoped to agent-loop request provenance plus the OpenAI-compatible transport that consumes it.
+### 6. Exact run-object hop
+
+The admitted reply run is assembled in
+`src/auto-reply/reply/get-reply-run-execute.ts`, where `thinkLevel` already enters
+`followupRun.run`:
+
+```ts
+run: {
+  ...
+  thinkingCatalog,
+  thinkLevel: resolvedThinkLevel,
+  ...
+}
+```
+
+Add the provenance beside the value:
+
+```diff
+   thinkingCatalog,
+   thinkLevel: resolvedThinkLevel,
++  thinkingExplicit: params.thinkingExplicit,
+   thinkLevelOverride,
+```
+
+and add `thinkingExplicit?: boolean` beside `thinkLevel?: ThinkLevel` in
+`AgentRunModelOptions`.
+
+This makes `attempt.thinkingExplicit` available automatically because
+`RunEmbeddedAgentParams` already intersects `AgentRunModelOptions`.
+
+Fallback candidates may recompute `candidateThinkLevel`, but the admitted run's
+`thinkingExplicit` bit should remain unchanged: changing model candidates does not turn an
+inherited default into an operator/session/config choice.
 
 ## Important non-goals
 

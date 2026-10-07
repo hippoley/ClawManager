@@ -226,3 +226,18 @@ link or an exclusive copy. Requiring inode equality would incorrectly miss the c
 
 The classifier does not elevate either file to trusted/sealed status; it only reduces authority by
 classifying the directory as incomplete and preventing automatic retirement.
+
+
+# Reviewer-confirmed acceptance commands
+
+ClawSweeper's durable review for issue #166466 independently confirmed the consumer boundaries and
+recommended the same shared classification approach. Its acceptance commands are:
+
+```bash
+pnpm test src/cli/update-cli/status.recovery.test.ts src/infra/update-database-backup.test.ts src/infra/update-recovery-capture-publication.test.ts --maxWorkers=1
+node scripts/check-changed.mjs
+git diff --check
+```
+
+The issue is now labeled `impact:data-loss`, `clawsweeper:queueable-fix`, and
+`clawsweeper:fix-shape-clear`. This artifact remains source-reviewed/not-executed.

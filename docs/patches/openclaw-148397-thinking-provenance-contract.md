@@ -275,7 +275,7 @@ export function resolveChatTemplateReasoningEffort(
   },
 ): string | undefined {
   return reasoning.thinkingEnabled &&
-    reasoning.thinkingExplicit === true &&
+    reasoning.thinkingExplicit !== false &&
     readCompatReasoningEfforts(model.compat)?.length
     ? reasoning.effort
     : undefined;
@@ -319,6 +319,131 @@ Fallback candidates may recompute `candidateThinkLevel`, but the admitted run's
 `thinkingExplicit` bit should remain unchanged: changing model candidates does not turn an
 inherited default into an operator/session/config choice.
 
+## Provenance semantics across run owners
+
+Use a three-state transport field during rollout:
+
+```ts
+thinkingExplicit?: boolean
+```
+
+Semantics:
+
+```text
+true      = owner proved user/session/config selected a thinking level
+false     = owner proved the level came only from model capability/default resolution
+undefined = caller has not yet supplied provenance; preserve current branch behavior
+```
+
+The Qwen helper therefore should **not** use `=== true` as an immediate global gate unless every
+production owner is updated in the same patch. Safer rollout logic is:
+
+```ts
+const shouldForwardSelectedEffort = reasoning.thinkingExplicit !== false;
+```
+
+Then explicitly stamp the main production owners:
+
+### Reply / Gateway turns
+
+Use the existing `thinkingExplicitlySet` value from `get-reply-directives.ts`.
+
+This is already exact:
+
+```ts
+thinkingLevelOverride !== undefined ||
+directives.thinkLevel !== undefined ||
+sessionThinkLevel !== undefined ||
+configuredThinkingDefault !== undefined ||
+modelState.hasConfiguredThinkingDefault === true
+```
+
+### Agent command / agent exec
+
+`resolveEmbeddedModelSelection()` already builds:
+
+```ts
+const immutableThinkLevel = params.requestedThinkLevel ?? configuredThinkLevel;
+const primaryConfiguredThinkLevel =
+  immutableThinkLevel ??
+  resolveConfiguredThinkingDefault({...});
+```
+
+`resolveConfiguredThinkingDefault()` reads only real configuration sources:
+- agent `thinkingDefault`;
+- model / agent-model `params.thinking`;
+- global agent default.
+
+It does **not** use the model capability fallback.
+
+Therefore the owner can stamp:
+
+```ts
+thinkingExplicit: primaryConfiguredThinkLevel !== undefined
+```
+
+and return/carry that fact beside `effectiveTurnThinkLevel`.
+
+Fallback model candidates retain this provenance while remapping the selected level to candidate
+capabilities.
+
+### Cron isolated agent
+
+`resolveCronThinkingSelection()` already returns:
+
+```ts
+requestedThinkLevel =
+  immutableThinkLevel ??
+  resolveConfiguredThinkingDefault(...)
+```
+
+so the cron owner can stamp:
+
+```ts
+thinkingExplicit: thinkingSelection.requestedThinkLevel !== undefined
+```
+
+before `resolveThinkingSelection()` fills a model capability fallback.
+
+### Fixed internal probes
+
+Callers that hard-code `thinkLevel: "off"` may stamp `thinkingExplicit: true` if the explicit
+off value is semantically part of the probe contract. This does not change payload output because
+off already omits `reasoning_effort`.
+
+### Unknown callers
+
+Until every internal/session helper is audited, `undefined` should preserve the candidate branch's
+current behavior rather than silently suppress a selected effort.
+
+The upgrade-safety regression must specifically exercise `false`, because that is the state that
+means "known unselected, preserve server template default."
+
+## Revised transport gate
+
+With the three-state rollout, the helper becomes:
+
+```ts
+export function resolveChatTemplateReasoningEffort(
+  model: OpenAIModeModel,
+  reasoning: {
+    effort: string | undefined;
+    thinkingEnabled: boolean | undefined;
+    thinkingExplicit?: boolean;
+  },
+): string | undefined {
+  return reasoning.thinkingEnabled &&
+    reasoning.thinkingExplicit !== false &&
+    readCompatReasoningEfforts(model.compat)?.length
+    ? reasoning.effort
+    : undefined;
+}
+```
+
+Once all production owners are proven to stamp true/false, this can be tightened to
+`thinkingExplicit === true` in a later cleanup, but doing that prematurely creates a second
+compatibility risk.
+
 ## Important non-goals
 
 Do **not**:
@@ -335,7 +460,7 @@ Do **not**:
 
 Extend `src/agents/openai-thinking-contract.test.ts` over both `managed` and `direct`:
 
-### A. Unselected declared template
+### A. Known-unselected declared template (`thinkingExplicit: false`)
 
 A declared model with no per-turn/session/configured thinking choice:
 
@@ -401,3 +526,18 @@ node scripts/run-vitest.mjs src/agents/sessions/sdk.test.ts --run
 Then rerun the existing real Qwen/vLLM proof for selected effort forwarding. For upgrade proof, use a declared template whose server default differs from mapped high and show that an unselected turn omits `reasoning_effort`.
 
 Status: source-reviewed against head `7a88f9441f37d076b6b6c8dbf4529e812748aab7`; not executed.
+
+
+## Self-audit note: test/type churn
+
+Make newly propagated provenance properties optional on broad shared structs during this patch
+(`thinkingExplicit?: boolean`) so existing command/test mocks that return only
+`resolvedThinkLevel` and `resolvedReasoningLevel` do not require unrelated fixture churn.
+
+The real resolver should still always return an explicit boolean for reply-owned runs.
+
+Add focused resolver assertions for both:
+- no directive/session/config default -> `thinkingExplicit: false`;
+- directive or configured default -> `thinkingExplicit: true`.
+
+This keeps the patch reviewable while ensuring the user-facing path never relies on `undefined`.

@@ -1,0 +1,100 @@
+From: hippoley
+Subject: [PATCH PROPOSAL] doctor: keep disk-space lint on operator source env
+
+Current-main proposal for OpenClaw PR #154829.
+
+This patch is intentionally narrow:
+- keep ordinary no-argument disk-space callers unchanged;
+- allow structured findings to resolve from an explicit env;
+- pass Doctor health-check ctx.env at the registration boundary;
+- do not mutate process.env or weaken plugin-state isolation.
+
+diff --git a/src/commands/doctor-disk-space.ts b/src/commands/doctor-disk-space.ts
+--- a/src/commands/doctor-disk-space.ts
++++ b/src/commands/doctor-disk-space.ts
+@@
+-function collectDiskSpaceWarnings(): {
++function collectDiskSpaceWarnings(params?: { env?: NodeJS.ProcessEnv }): {
+   availableBytes: number;
+   stateDir: string;
+   warnings: readonly string[];
+ } | null {
+-  const env = process.env;
++  const env = params?.env ?? process.env;
+   const homedir = () => resolveRequiredHomeDir(env, os.homedir);
+   const stateDir = resolveStateDir(env, homedir);
+@@
+-export function collectDiskSpaceHealthFindings(): readonly HealthFinding[] {
+-  const result = collectDiskSpaceWarnings();
++export function collectDiskSpaceHealthFindings(params?: {
++  env?: NodeJS.ProcessEnv;
++}): readonly HealthFinding[] {
++  const result = collectDiskSpaceWarnings(params);
+   if (!result || result.warnings.length === 0) {
+     return [];
+   }
+
+diff --git a/src/flows/doctor-health-contributions-initial.ts b/src/flows/doctor-health-contributions-initial.ts
+--- a/src/flows/doctor-health-contributions-initial.ts
++++ b/src/flows/doctor-health-contributions-initial.ts
+@@
+       healthChecks: {
+         description: "Low disk space around the OpenClaw state directory is a finding.",
+         defaultEnabled: false,
+-        async detect() {
++        async detect(ctx) {
+           const { collectDiskSpaceHealthFindings } =
+             await import("../commands/doctor-disk-space.js");
+-          return collectDiskSpaceHealthFindings();
++          return collectDiskSpaceHealthFindings({ env: ctx.env });
+         },
+       },
+       run: runDiskSpaceHealth,
+
+diff --git a/src/commands/doctor-disk-space.test.ts b/src/commands/doctor-disk-space.test.ts
+--- a/src/commands/doctor-disk-space.test.ts
++++ b/src/commands/doctor-disk-space.test.ts
+@@
+ describe("collectDiskSpaceHealthFindings", () => {
++  it("uses an explicit source env instead of ambient state-dir resolution", () => {
++    const readDiskSpace = vi.spyOn(diskSpace, "tryReadDiskSpace").mockReturnValue({
++      availableBytes: 50 * 1024 * 1024,
++      targetPath: "/operator/.openclaw",
++      checkedPath: "/operator",
++      totalBytes: null,
++    });
++
++    const env = {
++      ...process.env,
++      OPENCLAW_STATE_DIR: "/operator/.openclaw",
++    };
++
++    expect(collectDiskSpaceHealthFindings({ env })).toEqual([
++      expect.objectContaining({
++        checkId: "core/doctor/disk-space",
++        severity: "error",
++        path: "/operator/.openclaw",
++      }),
++    ]);
++    expect(readDiskSpace).toHaveBeenCalledExactlyOnceWith("/operator/.openclaw");
++  });
++
+   it("returns critical at exactly 0 bytes", () => {
+     expect(collectFindingsAt(0)).toEqual([
+       expect.objectContaining({ target: "0 B", requirement: "critical-free-space" }),
+
+Recommended integration regression:
+- select core/doctor/disk-space together with one isolated plugin check;
+- give source env and private plugin snapshot different OPENCLAW_STATE_DIR values;
+- assert disk-space probes the source/operator directory;
+- assert the plugin check remains inside its private state snapshot;
+- preserve source SQLite bytes before/after.
+
+Compatibility:
+- no config key change;
+- no persisted schema change;
+- no migration/backfill;
+- noteDiskSpace() keeps its existing ambient process.env behavior;
+- only the structured Doctor health-check path gains explicit source-env ownership.
+
+Status: source-reviewed against current main on 2026-10-07; not executed locally because the connected GitHub account has pull-only access to openclaw/openclaw and no writable fork is available through the current connector.

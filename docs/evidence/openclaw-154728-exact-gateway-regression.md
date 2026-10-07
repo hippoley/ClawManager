@@ -87,3 +87,23 @@ Suggested timing capture:
 ```
 
 Caveat: this is source-reviewed against the PR branch, not executed in this environment.
+
+
+## Self-audit: waitForAgentJob signature
+
+Verified against current main:
+
+```ts
+export async function waitForAgentJob(params: {
+  runId: string;
+  timeoutMs: number;
+  source?: "agent" | "chat";
+  ...
+})
+```
+
+So the proposed `waitForAgentJob({ runId, timeoutMs: 0, source: "agent" })` call is
+type-correct. Current repository tests also use `source: "agent"` directly in
+`agent-job.execution-settlement.test.ts`.
+
+No correction is required for this part of the regression.

@@ -55,3 +55,5 @@ When an item is merged, the record should be moved out of the active table immed
 ## Near-term objective
 
 Convert at least one active OpenClaw blocker into a public `hippoley` contribution artifact, then link that artifact here with exact provenance.
+
+- **OpenClaw #166371** — [real Claude CLI proof protocol](https://github.com/hippoley/ClawManager/blob/main/docs/evidence/openclaw-166371-real-claude-cli-proof-protocol.md) and [upstream handoff](https://github.com/openclaw/openclaw/pull/166371#issuecomment-6029755805), authored from `hippoley`. Converted the remaining after-fix runtime-proof blocker into a branch-specific Claude CLI transcript/delivery contract without fabricating evidence or conflating the overlapping #153032 patch.

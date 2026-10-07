@@ -340,3 +340,12 @@ git diff --check
 
 Status: source-reviewed against head
 `19d2db119dab26136d8264e8608e33e2416dbda6`; not executed.
+
+
+## Self-audit notes (2026-10-07)
+
+- `src/infra/errno.ts` formally exports `hasErrnoCode`, so the proposed publication helper import is valid.
+- `update-recovery-capture-publication.ts` does not import the backup reader or baseline-capture owner. Importing the pure classifier from both consumers does not introduce a module cycle.
+- Treating the two-name state as incomplete does **not** admit it as a sealed/restorable generation. It reduces authority: the strict manifest parser is skipped for that capture and no automatic retirement is allowed.
+- The existing unrelated `manifest-hardlink` test remains strict because it has no capture-owned `manifest.json.partial` sibling.
+- Successful publication has a stronger protocol invariant than inode/link-count details: the temporary source name is absent. This is why the classifier intentionally covers both hardlink and exclusive-copy interruption windows.

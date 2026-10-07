@@ -82,3 +82,14 @@ per-file CI seconds
 ```
 
 Status: GitHub CI metadata verified for the exact head; no local test execution is claimed in this artifact.
+
+
+## Self-audit (2026-10-07)
+
+The focused timing command matches OpenClaw's own test-cost policy:
+
+- repository `AGENTS.md` requires PRs to report `pnpm test <file> --maxWorkers=1` wall time and CI seconds when available;
+- `docs/help/testing/writing-tests.md` defines the same one-worker command as the cost-budget measurement;
+- the test-performance skill also uses `/usr/bin/time ... pnpm test <file> --maxWorkers=1`.
+
+So the proposed consolidated-head measurement command follows the repository's documented maintenance contract rather than inventing a custom runner shape.

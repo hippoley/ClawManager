@@ -28,8 +28,12 @@ Snapshot: 2026-10-07.
 | [#154735](https://github.com/openclaw/openclaw/pull/154735) | Open | Latest review asks for conflict resolution against current main and refreshed focused validation. |
 | [#154702](https://github.com/openclaw/openclaw/pull/154702) | Open | Review-specific follow-up only. |
 | [#154728](https://github.com/openclaw/openclaw/pull/154728) | Open | Review-specific follow-up only. |
-| [#154829](https://github.com/openclaw/openclaw/pull/154829) | Open | Compatibility / current-main proof remains more valuable than adding framework code. |
+| [#154829](https://github.com/openclaw/openclaw/pull/154829) | Open — **contributed evidence** | [hippoley current-main integration note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347): identified the source-env vs ambient-env boundary, proposed a minimal current-main-compatible repair, and flagged stale migration-blocker bookkeeping. |
 | [#154837](https://github.com/openclaw/openclaw/pull/154837) | Open | Maintainer review / landing decision; avoid redundant changes. |
+
+## Public contribution artifacts
+
+- **OpenClaw #154829** — [current-main integration review note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347), authored from `hippoley`. This is the first verified public OpenClaw artifact in this ledger.
 
 ## What counts as a durable GitHub contribution
 

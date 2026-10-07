@@ -498,3 +498,45 @@ find semantic mismatch
 ```
 
 The next admission ticket is **reuse**, not another acknowledgement.
+
+
+## Authority-continuity invariant now appears in formal upstream review
+
+Fresh ClawSweeper Revision 6 on PR #163686 formalizes the same continuity boundary identified here.
+
+The review recommends:
+
+- preserve retained-registration authority by default;
+- do not let metadata-equivalent fresh plugin instances inherit predecessor reply authority;
+- if fresh-instance continuation is ever allowed, require an **explicit, revocable, lifecycle-owned
+  publication-time transfer**;
+- prove both approved successor delivery and rejection of unapproved same-location replacement,
+  changed sender, and revoked/superseded Gateway authority at final transport I/O.
+
+This is a material institutional signal because the distinction is now present in OpenClaw's formal
+review language, not just local strategy analysis:
+
+```text
+metadata resemblance
+!=
+authority continuity
+
+retained identity / prepared view
+!=
+fresh successor inheritance
+
+fresh successor authority
+requires explicit lifecycle-owned transfer
+```
+
+That means the continuity problem has crossed from "interesting edge case" into "recognized security
+boundary."
+
+Do not comment on #163686 merely to restate this. The next valuable contribution trigger is narrower:
+
+1. a concrete lifecycle owner proposes the successor-transfer fact;
+2. a second subsystem repeats inferred successor authority from metadata/identity resemblance;
+3. a shared contract/test surface needs to distinguish retained continuity from transferred
+   continuity.
+
+At that point, contribute the executable invariant rather than another prose explanation.

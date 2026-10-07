@@ -1,0 +1,199 @@
+diff --git a/src/infra/update-recovery-capture-publication.ts b/src/infra/update-recovery-capture-publication.ts
+--- a/src/infra/update-recovery-capture-publication.ts
++++ b/src/infra/update-recovery-capture-publication.ts
+@@
+ import {
+   publishFileExclusive,
+   requireDirectorySync,
+   syncDirectory,
+ } from "./directory-durability.js";
++import { hasErrnoCode } from "./errno.js";
++
++export const UPDATE_RECOVERY_MANIFEST_NAME = "manifest.json";
++export const UPDATE_RECOVERY_PARTIAL_MANIFEST_NAME = "manifest.json.partial";
++
++async function lstatOrMissing(pathname: string) {
++  try {
++    return await fs.lstat(pathname);
++  } catch (error) {
++    if (hasErrnoCode(error, "ENOENT")) {
++      return undefined;
++    }
++    throw error;
++  }
++}
++
++/**
++ * A final manifest with its capture-owned temporary source still present is
++ * retained incomplete evidence. Successful publication always removes the
++ * temporary source after the exclusive target is durable.
++ *
++ * This does not admit either file as sealed or restorable.
++ */
++export async function hasInterruptedUpdateRecoveryManifestSeal(
++  directory: string,
++): Promise<boolean> {
++  const [finalEntry, partialEntry] = await Promise.all([
++    lstatOrMissing(path.join(directory, UPDATE_RECOVERY_MANIFEST_NAME)),
++    lstatOrMissing(path.join(directory, UPDATE_RECOVERY_PARTIAL_MANIFEST_NAME)),
++  ]);
++  if (!finalEntry || !partialEntry) {
++    return false;
++  }
++  if (!finalEntry.isFile() || !partialEntry.isFile()) {
++    throw new Error(
++      `Interrupted update recovery manifest seal has an unsupported file kind: ${directory}`,
++    );
++  }
++  return true;
++}
+ 
+ /** Publish a private capture without requiring native no-replace rename support. */
+ export async function publishUpdateRecoveryCaptureFile(
+
+diff --git a/src/infra/update-recovery-backup-reader.ts b/src/infra/update-recovery-backup-reader.ts
+--- a/src/infra/update-recovery-backup-reader.ts
++++ b/src/infra/update-recovery-backup-reader.ts
+@@
+ import { resolveUpdateCaptureRoot } from "./update-capture-paths.js";
+ import { UPDATE_CAPTURE_PRIVACY_MARKER } from "./update-capture-privacy-marker.js";
++import {
++  hasInterruptedUpdateRecoveryManifestSeal,
++  UPDATE_RECOVERY_MANIFEST_NAME,
++} from "./update-recovery-capture-publication.js";
+ import { recordedUpdateRunDrivers } from "./update-run-activity.js";
+@@
+-      const manifestPath = path.join(directory, "manifest.json");
++      const manifestPath = path.join(directory, UPDATE_RECOVERY_MANIFEST_NAME);
+       const manifestEntry = entry?.isDirectory() ? await statOrMissing(manifestPath) : undefined;
+@@
+       if (entry?.isDirectory() && !manifestEntry && /^[a-zA-Z0-9_-]{1,128}$/u.test(captureId)) {
+         result.push({ kind: "incomplete", directory });
+         continue;
+       }
++      if (
++        entry?.isDirectory() &&
++        manifestEntry?.isFile() &&
++        (await hasInterruptedUpdateRecoveryManifestSeal(directory))
++      ) {
++        result.push({ kind: "incomplete", directory });
++        continue;
++      }
+       if (!entry?.isDirectory() || !manifestEntry?.isFile()) {
+         throw new Error(
+           `Unresolved update capture ${directory} has incomplete publication. Inspection only: openclaw update status --json; npx openclaw@latest doctor --fix. Earlier captures are retained.`,
+         );
+
+diff --git a/src/infra/update-recovery-baseline-capture.ts b/src/infra/update-recovery-baseline-capture.ts
+--- a/src/infra/update-recovery-baseline-capture.ts
++++ b/src/infra/update-recovery-baseline-capture.ts
+@@
+-import { publishUpdateRecoveryCaptureFile } from "./update-recovery-capture-publication.js";
++import {
++  hasInterruptedUpdateRecoveryManifestSeal,
++  publishUpdateRecoveryCaptureFile,
++  UPDATE_RECOVERY_MANIFEST_NAME,
++  UPDATE_RECOVERY_PARTIAL_MANIFEST_NAME,
++} from "./update-recovery-capture-publication.js";
+@@
+-      const manifestPath = path.join(directory, "manifest.json");
+-      const temporaryManifestPath = path.join(directory, "manifest.json.partial");
++      const manifestPath = path.join(directory, UPDATE_RECOVERY_MANIFEST_NAME);
++      const temporaryManifestPath = path.join(
++        directory,
++        UPDATE_RECOVERY_PARTIAL_MANIFEST_NAME,
++      );
+@@
+       const entry = await fs.lstat(directory);
+       if (!entry.isDirectory() || entry.isSymbolicLink()) {
+         continue;
+       }
++      if (await hasInterruptedUpdateRecoveryManifestSeal(directory)) {
++        continue;
++      }
+       let raw: string;
+       try {
+-        raw = await fs.readFile(path.join(directory, "manifest.json"), "utf8");
++        raw = await fs.readFile(path.join(directory, UPDATE_RECOVERY_MANIFEST_NAME), "utf8");
+       } catch (error) {
+         if (hasErrnoCode(error, "ENOENT")) {
+           continue;
+
+diff --git a/src/cli/update-cli/status.recovery.test.ts b/src/cli/update-cli/status.recovery.test.ts
+--- a/src/cli/update-cli/status.recovery.test.ts
++++ b/src/cli/update-cli/status.recovery.test.ts
+@@
+ it.each([true, false])(
+   "keeps valid recovery sets visible beside an unfinished capture (JSON: %s)",
+@@
+ );
++
++it("keeps healthy recovery sets visible beside an interrupted fallback seal", async () => {
++  const healthy = await capture("11111111-1111-4111-8111-111111111111");
++  await terminal(healthy, "committed");
++  const interrupted = await capture("22222222-2222-4222-8222-222222222222");
++  const partialPath = path.join(interrupted.directory, "manifest.json.partial");
++  await fs.rename(interrupted.manifestPath, partialPath);
++  await fs.link(partialPath, interrupted.manifestPath);
++
++  await updateStatusCommand({ json: true });
++
++  expect(result()).not.toHaveProperty("recoverySetsError");
++  expect(result().recoverySets).toEqual(
++    expect.arrayContaining([
++      expect.objectContaining({
++        runId: healthy.manifest.runId,
++        manifestPath: healthy.manifestPath,
++        status: "stale",
++      }),
++      expect.objectContaining({
++        directory: interrupted.directory,
++        status: "incomplete",
++      }),
++    ]),
++  );
++  expect(await fs.readFile(partialPath, "utf8")).toBe(interrupted.raw);
++  expect(await fs.readFile(interrupted.manifestPath, "utf8")).toBe(interrupted.raw);
++});
++
++it("classifies a copied final with retained partial as incomplete", async () => {
++  const interrupted = await capture();
++  const partialPath = path.join(interrupted.directory, "manifest.json.partial");
++  await fs.rename(interrupted.manifestPath, partialPath);
++  await fs.copyFile(partialPath, interrupted.manifestPath);
++
++  await updateStatusCommand({ json: true });
++
++  expect(result()).not.toHaveProperty("recoverySetsError");
++  expect(result().recoverySets).toEqual([
++    expect.objectContaining({
++      directory: interrupted.directory,
++      status: "incomplete",
++    }),
++  ]);
++});
+ 
+ it.each([
+   "foreign-state",
+
+diff --git a/src/infra/update-database-backup.test.ts b/src/infra/update-database-backup.test.ts
+--- a/src/infra/update-database-backup.test.ts
++++ b/src/infra/update-database-backup.test.ts
+@@
+     const expired = await sealed(`doctor-${randomUUID()}`, 31);
+     const recent = await sealed(`doctor-${randomUUID()}`, 1);
+     const incomplete = path.join(store, `doctor-${randomUUID()}`);
+     await fs.mkdir(incomplete);
++    const interrupted = await sealed(`doctor-${randomUUID()}`, 31);
++    const interruptedPartial = path.join(interrupted, "manifest.json.partial");
++    await fs.link(path.join(interrupted, "manifest.json"), interruptedPartial);
+     const update = await sealed(randomUUID(), 40);
+@@
+-    for (const retained of [recent, incomplete, update, linkedTarget]) {
++    for (const retained of [recent, incomplete, interrupted, update, linkedTarget]) {
+       expect((await fs.lstat(retained)).isDirectory()).toBe(true);
+     }
++    expect(await fs.readFile(interruptedPartial)).toEqual(
++      await fs.readFile(path.join(interrupted, "manifest.json")),
++    );
+     expect((await fs.lstat(linked)).isSymbolicLink()).toBe(true);

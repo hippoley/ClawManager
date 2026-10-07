@@ -189,6 +189,8 @@ This project is licensed under the MIT License.
 
 Issues and pull requests are welcome.
 
+For provenance-first tracking of related upstream OpenClaw work, see the [OpenClaw upstream engagement ledger](./docs/upstream-openclaw-engagement.md). The ledger separates authored contributions from upstream work tracked or incorporated elsewhere.
+
 ## Star History
 
 <a href="https://www.star-history.com/?repos=Yuan-lab-LLM%2FClawManager&type=date&legend=top-left">

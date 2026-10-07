@@ -1,0 +1,15 @@
+diff --git a/src/config/sessions/session-transcript-worker-resources.ts b/src/config/sessions/session-transcript-worker-resources.ts
+--- a/src/config/sessions/session-transcript-worker-resources.ts
++++ b/src/config/sessions/session-transcript-worker-resources.ts
+@@
+         if (
+           revoked ||
+           [...retained.values()].some(
+-            (resource) =>
+-              resource.revoked || Boolean(resource.closing) || !resource.nativeSequences.has(lane),
++            (resource) => resource.revoked || Boolean(resource.closing),
+           )
+         ) {
+           throw new WorkerTaskError(
+             "Session reader custody was revoked during discovery cleanup",
+             "unavailable",

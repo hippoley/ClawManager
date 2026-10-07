@@ -540,3 +540,49 @@ Do not comment on #163686 merely to restate this. The next valuable contribution
    continuity.
 
 At that point, contribute the executable invariant rather than another prose explanation.
+
+
+## Runtime contract entry threshold confirmed
+
+PR #160649 currently has one concrete adopter:
+
+```text
+shared helper:
+openclaw/plugin-sdk/acp-runtime-contract-testing
+
+adopter:
+extensions/acpx/src/runtime.test.ts
+  → installAcpRuntimeTurnContractSuite({ name: "ACPX wrapper", ... })
+```
+
+The suite already codifies:
+
+- request identity;
+- event ordering;
+- completed/failed terminal authority;
+- prompt submission readiness;
+- cancellation forwarding;
+- result settlement independent from event-stream closure;
+- closeStream not fabricating cancellation or terminal settlement.
+
+There is not yet a second runtime adopter in the introduced patch.
+
+That means the correct positioning move is **not** to broaden the suite now.
+
+Wait for one of these triggers:
+
+1. a second ACP/runtime adapter adopts the suite;
+2. a real cross-adapter defect exposes a missing observable invariant;
+3. an authority-lifecycle bug repeats in a runtime surface that naturally maps to the turn contract.
+
+Only then propose the smallest shared contract case that is already justified by production behavior.
+
+This preserves the distinction between:
+
+```text
+architecture anticipation
+and
+institutionalized conformance
+```
+
+The goal is to arrive with evidence, not vocabulary.

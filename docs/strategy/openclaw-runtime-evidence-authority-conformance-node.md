@@ -356,3 +356,145 @@ conversation binding / delivery authority
 ```
 
 A third independent occurrence would be a strong threshold for shared institutionalization.
+
+
+## Shared effect authority is already institutional
+
+Current main already has a cross-adapter authority primitive:
+
+`src/shared/effect-authority.ts`
+
+Its lifecycle is explicit:
+
+```text
+withEffectPreparation()
+→ prepare fresh use
+→ assertCurrent()
+→ initiate()
+→ persist() through commit / settlement
+→ release()
+```
+
+The repository comment is itself the contract:
+
+> Database writers retain this use through their existing commit/settlement boundary.
+
+This primitive is not local to one adapter. Current production consumers include Gateway message
+operations and transports such as Telegram, Slack, WhatsApp, Matrix, iMessage, Feishu, Signal, IRC,
+Zalo, Mattermost and others.
+
+Therefore the next useful position is **not** to propose another generic authority framework.
+
+The higher-value review question becomes:
+
+```text
+does this effect path capture the shared authority?
+does it prepare a fresh use after queues/retries?
+does it retain authority until the actual effect/commit/settlement boundary?
+does it release only after ownership ends?
+does any cache/custody/liveness fact accidentally substitute for authority?
+```
+
+This is a concrete institutional surface on which future defects can be evaluated.
+
+## Third-occurrence threshold reached: authority across asynchronous boundaries
+
+Three distinct surfaces now establish a recurring architecture pattern:
+
+1. **#166503 — session-reader discovery**
+   - native custody disappeared during normal cleanup;
+   - post-cleanup code incorrectly treated custody loss as authority revocation;
+   - `hippoley` distinction was adopted in production and cited by ClawSweeper.
+
+2. **#166506 — cold-history restoration**
+   - entry-time authorization did not protect an earlier restoration write after asynchronous
+     preparation / queue waits;
+   - the repair carries prepared caller/lifecycle authority through preparation, restoration and
+     commit.
+
+3. **#166444 / #166259 — placement and conversation final effects**
+   - worker-prepared facts are not sufficient by themselves;
+   - final node/transport effects retain live authorization and explicit commit/settlement semantics.
+
+The repeated invariant is now broader than `custody != authority`:
+
+> **Authority must remain current across prepare → wait → write/initiate → commit/settlement → final
+> effect.**
+
+This is architecture, not a one-off bug class.
+
+Do not immediately add another abstraction: `effect-authority.ts`, prepared-authority owners and
+transaction/commit admission already exist. The useful role is now to detect paths that bypass,
+truncate or infer that lifecycle incorrectly.
+
+## Authority continuity / transfer is the next open edge
+
+PR #163686 exposes a distinct next-level problem:
+
+```text
+old runtime admits work
+→ plugin runtime is recreated
+→ may the new runtime execute the saved final effect?
+```
+
+Current plugin lifecycle already has explicit continuity mechanisms:
+
+- Gateway owner binding;
+- publication snapshots;
+- prepared views borrowing the exact publication snapshot;
+- retained registration identity;
+- lifecycle epochs;
+- record adoption / retirement;
+- live registration admission.
+
+Important current-main comments make the boundary explicit:
+
+```text
+"Prepared views inherit the publication snapshot, not a successor generation."
+"Keep its admitted registrations, not callable authority, for successor continuity checks."
+"Publication transfers exact instances..."
+```
+
+Therefore metadata resemblance such as matching:
+
+```text
+plugin id
+source path
+rootDir
+plugin name
+settings
+```
+
+is not an authority-transfer fact.
+
+The institutional invariant is:
+
+> **Authority continuity must be explicitly transferred by the lifecycle owner; it must never be
+> inferred from metadata resemblance.**
+
+PR #163686 is currently blocked on exactly this maintainer decision. Do not comment merely to restate
+the review. Enter only if one of two things happens:
+
+1. a lifecycle owner publishes a concrete successor-transfer fact that can be audited; or
+2. another subsystem independently tries to infer successor authority from metadata/identity
+   resemblance.
+
+At that point the invariant has cross-surface evidence and is a candidate for a shared contract/test.
+
+## Updated positioning ladder
+
+The position is now more concrete:
+
+```text
+find semantic mismatch
+→ identify existing authority owner
+→ distinguish authority from custody / state / metadata
+→ bind the exact effect boundary
+→ produce executable regression
+→ upstream adoption
+→ reviewer attribution
+→ detect cross-owner recurrence
+→ move invariant into shared contract / owner tests
+```
+
+The next admission ticket is **reuse**, not another acknowledgement.

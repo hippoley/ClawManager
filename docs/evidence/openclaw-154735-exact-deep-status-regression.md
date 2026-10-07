@@ -7,20 +7,21 @@ Add this focused regression to `src/commands/status.command-report-data.test.ts`
 ```ts
 it("shows context-engine quarantine and exhausted config reload in deep status", async () => {
   const params = createStatusCommandReportDataParams();
-  const health = expectDefined(params.health, "health fixture");
-
-  health.contextEngines = {
-    quarantined: [
-      {
-        engineId: "lossless-claw",
-        owner: "plugin:lossless-claw",
-        operation: "assemble",
-        reason: "database corrupt",
-        failedAt: Date.now(),
-      },
-    ],
+  const health = {
+    ...expectDefined(params.health, "health fixture"),
+    contextEngines: {
+      quarantined: [
+        {
+          engineId: "lossless-claw",
+          owner: "plugin:lossless-claw",
+          operation: "assemble",
+          reason: "database corrupt",
+          failedAt: Date.now(),
+        },
+      ],
+    },
+    configReload: { hotReloadStatus: "disabled" as const },
   };
-  health.configReload = { hotReloadStatus: "disabled" };
 
   const report = await buildStatusCommandReportData({
     ...params,
@@ -56,10 +57,11 @@ And keep/add this healthy omission case:
 ```ts
 it("omits auxiliary operational rows when healthy", async () => {
   const params = createStatusCommandReportDataParams();
-  const health = expectDefined(params.health, "health fixture");
-
-  health.contextEngines = { quarantined: [] };
-  health.configReload = { hotReloadStatus: "active" };
+  const health = {
+    ...expectDefined(params.health, "health fixture"),
+    contextEngines: { quarantined: [] },
+    configReload: { hotReloadStatus: "active" as const },
+  };
 
   const report = await buildStatusCommandReportData({
     ...params,
@@ -74,15 +76,52 @@ it("omits auxiliary operational rows when healthy", async () => {
 
 Why this is the right current-main boundary:
 - it exercises `buildStatusCommandReportData`, not only the formatter helpers;
+- it uses the actual protocol-backed `HealthSummary` shapes:
+  - `contextEngines.quarantined[] = { engineId, owner?, operation, reason, failedAt }`
+  - `configReload.hotReloadStatus = "active" | "disabled"`
 - it preserves current main's Gateway / SQLite WAL / event-loop rows;
 - it distinguishes operational WARN from intentionally disabled channel OFF;
 - it does not reintroduce the already-moved formatter ownership.
 
+The production integration should import and append the existing shared formatter owners:
+
+```ts
+import {
+  formatConfigReloadHealthLine,
+  formatContextEngineHealthLine,
+  formatDeliveryQueueHealthLine,
+  formatHealthChannelLines,
+} from "./health-format.js";
+```
+
+Then, alongside the existing delivery-queue line:
+
+```ts
+for (const operationalLine of [
+  formatContextEngineHealthLine(params.health),
+  formatDeliveryQueueHealthLine(params.health),
+  formatConfigReloadHealthLine(params.health),
+]) {
+  if (operationalLine) {
+    healthLines.push(operationalLine);
+  }
+}
+```
+
+The existing row parser will classify both new warning strings as `WARN` because neither begins with an OK/OFF/LINKED prefix.
+
 Suggested focused validation:
 
 ```bash
-pnpm test src/commands/status.command-report-data.test.ts --run
-pnpm test src/commands/health-format.test.ts --run
+node scripts/run-vitest.mjs src/commands/status.command-report-data.test.ts --run
+node scripts/run-vitest.mjs src/commands/health-format.test.ts --run
 ```
+
+Self-check notes (2026-10-07):
+- current test file already imports `expectDefined`, `stripAnsi`, `buildStatusCommandReportData`, and `createStatusCommandReportDataParams`;
+- current protocol schema confirms the context-engine and config-reload fixture shapes above;
+- using object spread avoids mutating a possibly narrowed fixture object;
+- expected row details exactly match the current shared formatter output after the table parser strips the prefix before the first colon;
+- source-reviewed, not executed.
 
 Status: source-reviewed against current main; not executed in this environment.

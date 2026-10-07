@@ -225,3 +225,210 @@ evidence that this focused terminal-outcome fix itself introduced dependency or 
 logic.
 
 Status: source-reviewed against `1edb04386eb9b5cf9d55410dc87a32d095890d06`; not executed.
+
+
+## Exact server-owned transport seam
+
+A stronger existing fixture removes the remaining ambiguity:
+
+`src/gateway/server-rpc-restart-owner.test.ts` already does all of the following together:
+
+1. starts a real in-process Gateway with `startGatewayWithClient()`;
+2. uses the returned real WebSocket `GatewayClient`;
+3. spies on `prepareGatewayKernelRequestRuntime()`;
+4. captures the actual live `GatewayRequestContext`;
+5. inspects `context.chatQueuedTurns` from that running server.
+
+The same captured `context` owns the real `context.dedupe` map used by Gateway request handling.
+
+Therefore the exact #154728 proof can use the running server's own canonical state rather than a
+throwaway Map.
+
+### Exact test shape
+
+Add a focused live/e2e case using the same startup seam:
+
+```ts
+import { randomUUID } from "node:crypto";
+import { expect, it, vi } from "vitest";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { createOpenClawTestState } from "../test-utils/openclaw-test-state.js";
+import { setGatewayDedupeEntry } from "./agent-turn/agent-job.js";
+import type { GatewayRequestContext } from "./server-methods/types.js";
+import {
+  disconnectGatewayClient,
+  startGatewayWithClient,
+} from "./test-helpers.e2e.js";
+
+it.each(["queue", "gateway_draining"] as const)(
+  "preserves completion over later %s timeout through real Gateway RPC",
+  async (timeoutPhase) => {
+    const token = `terminal-proof-${randomUUID()}`;
+    const state = await createOpenClawTestState({
+      label: `terminal-rpc-${timeoutPhase}`,
+      env: {
+        OPENCLAW_GATEWAY_TOKEN: token,
+        OPENCLAW_SKIP_CHANNELS: "1",
+        OPENCLAW_SKIP_GMAIL_WATCHER: "1",
+        OPENCLAW_SKIP_CRON: "1",
+        OPENCLAW_SKIP_CANVAS_HOST: "1",
+        OPENCLAW_SKIP_BROWSER_CONTROL_SERVER: "1",
+        OPENCLAW_SKIP_PROVIDERS: "1",
+        OPENCLAW_DISABLE_BUNDLED_PLUGINS: "1",
+      },
+    });
+
+    const cfg = {
+      gateway: { auth: { mode: "token", token } },
+      plugins: { slots: { memory: "none" } },
+      tools: { deny: ["*"] },
+    } satisfies OpenClawConfig;
+
+    let context: GatewayRequestContext | undefined;
+    const kernel = await import("./server-kernel-request-runtime.js");
+    const prepare = kernel.prepareGatewayKernelRequestRuntime;
+    const startupSpy = vi
+      .spyOn(kernel, "prepareGatewayKernelRequestRuntime")
+      .mockImplementation(async (params) => {
+        const result = await prepare(params);
+        context = result.gatewayRequestContext;
+        return result;
+      });
+
+    let gateway: Awaited<ReturnType<typeof startGatewayWithClient>> | undefined;
+    try {
+      gateway = await startGatewayWithClient({
+        cfg,
+        configPath: state.configPath,
+        token,
+        scopes: ["operator.admin", "operator.read", "operator.write"],
+      });
+      startupSpy.mockRestore();
+      await gateway.server.startupSettled;
+
+      if (!context) {
+        throw new Error("real Gateway request context was not captured");
+      }
+
+      const runId = `terminal-rpc-${timeoutPhase}-${randomUUID()}`;
+      const key = `agent:${runId}`;
+
+      setGatewayDedupeEntry({
+        dedupe: context.dedupe,
+        key,
+        entry: {
+          ts: 200,
+          ok: true,
+          payload: {
+            runId,
+            status: "ok",
+            startedAt: 100,
+            endedAt: 200,
+          },
+        },
+      });
+
+      setGatewayDedupeEntry({
+        dedupe: context.dedupe,
+        key,
+        entry: {
+          ts: 300,
+          ok: true,
+          payload: {
+            runId,
+            status: "timeout",
+            startedAt: 100,
+            endedAt: 300,
+            timeoutPhase,
+          },
+        },
+      });
+
+      const result = await gateway.client.request<{
+        runId?: string;
+        status?: string;
+        endedAt?: number;
+        timeoutPhase?: string;
+      }>(
+        "agent.wait",
+        { runId, timeoutMs: 5_000 },
+        { timeoutMs: 10_000 },
+      );
+
+      expect(result).toMatchObject({
+        status: "ok",
+        endedAt: 200,
+      });
+
+      process.stdout.write(
+        `REAL_GATEWAY_RPC ${JSON.stringify({
+          timeoutPhase,
+          status: result.status,
+          endedAt: result.endedAt,
+        })}\n`,
+      );
+    } finally {
+      startupSpy.mockRestore();
+      if (gateway) {
+        await disconnectGatewayClient(gateway.client).catch(() => undefined);
+        await gateway.server
+          .close({ reason: "terminal RPC proof cleanup" })
+          .catch(() => undefined);
+      }
+      await state.cleanup();
+    }
+  },
+);
+```
+
+### Why this clears the exact review distinction
+
+This is no longer:
+
+```text
+agentHandlers["agent.wait"](...)
++ synthetic context
++ vi.fn respond
+```
+
+It is:
+
+```text
+real Gateway server
++ real captured server-owned GatewayRequestContext
++ production setGatewayDedupeEntry on context.dedupe
++ real authenticated WebSocket GatewayClient
++ GatewayClient.request("agent.wait", ...)
+```
+
+The only synthetic part is deterministic publication of the two observations into the same
+production owner the Gateway uses. The transport and request dispatch are real.
+
+### Red/green control
+
+Run the exact same case twice:
+
+1. candidate `1edb04386e`
+2. with only `src/agents/agent-run-terminal-outcome-merge.ts` reverted to current-main behavior
+
+Expected terminal output:
+
+```text
+candidate:
+REAL_GATEWAY_RPC {"timeoutPhase":"queue","status":"ok","endedAt":200}
+REAL_GATEWAY_RPC {"timeoutPhase":"gateway_draining","status":"ok","endedAt":200}
+
+reverted merge owner:
+REAL_GATEWAY_RPC {"timeoutPhase":"queue","status":"timeout","endedAt":300}
+REAL_GATEWAY_RPC {"timeoutPhase":"gateway_draining","status":"timeout","endedAt":300}
+```
+
+This directly matches Revision 5's remaining proof request.
+
+## Correction to the earlier schematic
+
+The earlier section showed a local `new Map()` only as a shape illustration and explicitly warned
+that it would not qualify if disconnected from the running server.
+
+The real fixture above resolves that concern by using `context.dedupe` captured from the actual
+running Gateway. Prefer this exact seam.

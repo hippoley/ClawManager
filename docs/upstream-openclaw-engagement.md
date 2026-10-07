@@ -23,7 +23,7 @@ Snapshot: 2026-10-07.
 | Upstream item | Current state | Next useful action |
 | --- | --- | --- |
 | [#166365](https://github.com/openclaw/openclaw/pull/166365) | Open | Maintainer decision / review. Avoid duplicate implementation unless a concrete finding appears. |
-| [#166364](https://github.com/openclaw/openclaw/pull/166364) | Open | Produce migration / upgrade compatibility proof if it remains the maintainer blocker. |
+| [#166364](https://github.com/openclaw/openclaw/pull/166364) | Open — **contributed evidence** | [hippoley compatibility-proof note](https://github.com/openclaw/openclaw/pull/166364#issuecomment-6029001497): narrowed the blocker to repair-boundary behavior equivalence and proposed base-vs-candidate persisted-output replay instead of an invented migration narrative. |
 | [#166361](https://github.com/openclaw/openclaw/pull/166361) | Open | Add timing/runtime evidence only if it is missing from the latest revision; do not duplicate existing benchmark data. |
 | [#154735](https://github.com/openclaw/openclaw/pull/154735) | Open | Latest review asks for conflict resolution against current main and refreshed focused validation. |
 | [#154702](https://github.com/openclaw/openclaw/pull/154702) | Open | Review-specific follow-up only. |
@@ -33,7 +33,8 @@ Snapshot: 2026-10-07.
 
 ## Public contribution artifacts
 
-- **OpenClaw #154829** — [current-main integration review note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347), authored from `hippoley`. This is the first verified public OpenClaw artifact in this ledger.
+- **OpenClaw #154829** — [current-main integration review note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347), authored from `hippoley`. Identified the source-env boundary and a stale migration blocker.
+- **OpenClaw #166364** — [compatibility-proof scoping note](https://github.com/openclaw/openclaw/pull/166364#issuecomment-6029001497), authored from `hippoley`. Proposed a concrete base-vs-candidate repair-output equivalence proof for the stored-data scanner blocker.
 
 ## What counts as a durable GitHub contribution
 

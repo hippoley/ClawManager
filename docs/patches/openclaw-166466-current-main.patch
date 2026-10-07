@@ -197,3 +197,32 @@ diff --git a/src/infra/update-database-backup.test.ts b/src/infra/update-databas
 +      await fs.readFile(path.join(interrupted, "manifest.json")),
 +    );
      expect((await fs.lstat(linked)).isSymbolicLink()).toBe(true);
+
+
+# Protocol note
+
+The classifier intentionally keys on the capture-owned temporary name rather than inode/link count.
+
+The writer contract is:
+
+1. create `manifest.json.partial` with `wx`;
+2. publish `manifest.json` exclusively;
+3. verify the source identity;
+4. unlink `manifest.json.partial`;
+5. sync the source directory;
+6. only then return success.
+
+Therefore a successful seal cannot retain the temporary name. A later successful capture also cannot
+silently coexist with a stale temporary source because its own `wx` creation would fail first.
+
+That makes:
+
+```text
+manifest.json + manifest.json.partial
+```
+
+a protocol-level incomplete state regardless of whether the fallback implementation used a hard
+link or an exclusive copy. Requiring inode equality would incorrectly miss the copy fallback.
+
+The classifier does not elevate either file to trusted/sealed status; it only reduces authority by
+classifying the directory as incomplete and preventing automatic retirement.

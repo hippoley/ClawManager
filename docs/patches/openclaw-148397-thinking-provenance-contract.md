@@ -137,7 +137,7 @@ thinkingExplicit: params.thinkingExplicit,
 
 Fallback candidates may recompute `candidateThinkLevel`, but they should retain the admitted turn's `thinkingExplicit` bit. A fallback model change does not retroactively turn an inherited default into a user/config choice.
 
-### 4. Carry it into the agent session without modifying public AgentState
+### 4. Carry it into the agent session without modifying AgentState or llm-core
 
 Add an optional field to `CreateAgentSessionOptions` / `AgentSessionConfig`:
 
@@ -156,31 +156,118 @@ const sessionOptions: CreateAgentSessionOptions = {
 };
 ```
 
-In `createAgentSession()`, inject it through the existing `streamFn` closure:
+Do **not** add this to `AgentState`: it is request provenance, not mutable conversational state.
+
+Instead add the bit to the internal agent-loop configuration:
+
+`packages/agent-core/src/types.ts`
 
 ```diff
- return modelRegistryRuntime.llmRuntime.streamSimple(modelResult, context, {
-   ...optionsLocal,
-+  thinkingExplicit: options.thinkingExplicit,
-   apiKey: auth.apiKey,
+ export interface AgentLoopConfig extends SimpleStreamOptions {
+   model: Model;
+   thinkingLevel?: ThinkingLevel;
++  /** Whether the admitted turn/session/config explicitly selected thinking. */
++  thinkingExplicit?: boolean;
    ...
- });
+ }
 ```
 
-This avoids adding provenance to `AgentState`, transcript rows, or persisted session metadata.
+`packages/agent-core/src/agent.ts`
 
-### 5. Add the provider-facing option
+```diff
+ export interface AgentOptions {
+   ...
++  /** Run-scoped provenance for the selected thinking level. */
++  thinkingExplicit?: boolean;
+ }
+@@
+ export class Agent {
++  public thinkingExplicit?: boolean;
+@@
+   constructor(options: AgentOptions = {}) {
+     ...
++    this.thinkingExplicit = options.thinkingExplicit;
+   }
+@@
+   private createLoopConfig(...): AgentLoopConfig {
+     return {
+       model: this.mutableState.model,
+       thinkingLevel: this.mutableState.thinkingLevel,
++      thinkingExplicit: this.thinkingExplicit,
+       reasoning: resolveAgentReasoningOption(...),
+       ...
+     };
+   }
+```
 
-Extend `SimpleStreamOptions` with an internal-compatible optional bit:
+`createAgentSession()` passes:
 
 ```ts
-/** Whether the reasoning/thinking level came from an explicit or configured selection. */
-thinkingExplicit?: boolean;
+const agent = new Agent({
+  ...
+  thinkingExplicit: options.thinkingExplicit,
+  ...
+});
 ```
 
-Then retain it in the OpenAI request reasoning result, or pass it alongside that result to the chat-template helper.
+This is sufficient because `streamAgentResponse()` already calls the provider with:
 
-Recommended helper shape:
+```ts
+streamFunction(config.model, llmContext, {
+  ...config,
+  apiKey: resolvedApiKey,
+  ...
+});
+```
+
+so the run-scoped bit reaches the provider wrapper at runtime without changing the shared `llm-core/SimpleStreamOptions` contract.
+
+### 5. Read the provenance only in the OpenAI/Qwen wrapper
+
+Do **not** add `thinkingExplicit` to `packages/llm-core/src/types.ts`. That would unnecessarily expand the shared LLM SDK API for a provider-specific serialization compatibility rule.
+
+In `packages/ai/src/providers/openai-completions.ts`, use a narrow internal intersection:
+
+```ts
+type OpenAIThinkingProvenanceOptions = SimpleStreamOptions & {
+  thinkingExplicit?: boolean;
+};
+
+export const streamSimpleOpenAICompletions = (...) => {
+  ...
+  const thinkingExplicit =
+    (options as OpenAIThinkingProvenanceOptions | undefined)?.thinkingExplicit;
+
+  return streamOpenAICompletions(model, context, {
+    ...base,
+    reasoningEffort: clampedReasoning,
+    toolChoice,
+    thinkingExplicit,
+  } as OpenAICompletionsOptions & { thinkingExplicit?: boolean });
+};
+```
+
+At the transport owner, read the same narrow extension and pass it to the shared chat-template helper. One clean shape is:
+
+```ts
+type ReasoningWithSelectionProvenance =
+  ReturnType<typeof resolveOpenAIRequestReasoning> & {
+    thinkingExplicit?: boolean;
+  };
+```
+
+Then:
+
+```ts
+const reasoning = {
+  ...resolveOpenAIRequestReasoning(...),
+  thinkingExplicit:
+    (options as (OpenAICompletionsOptions & { thinkingExplicit?: boolean }) | undefined)
+      ?.thinkingExplicit,
+};
+```
+
+and tighten only the Qwen chat-template helper:
 
 ```ts
 export function resolveChatTemplateReasoningEffort(
@@ -199,7 +286,13 @@ export function resolveChatTemplateReasoningEffort(
 }
 ```
 
-Both managed and direct Chat Completions paths already call this shared helper, so one provenance-aware gate covers both transports.
+Both managed and direct Chat Completions paths already call this helper, so the same provenance gate applies to both transports.
+
+This keeps the compatibility bit:
+- out of persisted state;
+- out of `AgentState`;
+- out of the shared `llm-core` API;
+- scoped to agent-loop request provenance plus the OpenAI-compatible transport that consumes it.
 
 ## Important non-goals
 

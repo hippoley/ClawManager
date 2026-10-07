@@ -320,3 +320,39 @@ same distinction
 ```
 
 That is the point at which the position becomes institutional rather than personal.
+
+
+## Authority consolidation watch: PR #166259
+
+PR #166259 is a stronger structural signal than an isolated bug.
+
+It moves conversation registration, binding mutations and delivery recovery into existing database
+workers while preserving:
+
+- transaction-local ownership facts;
+- live revocation checks;
+- final-effect authority around the concrete platform-method handoff;
+- release before transport settlement;
+- outcome-unknown semantics after accepted initiation rather than granting replay permission.
+
+The current reviewer has no correctness finding on those authority semantics; the remaining blocker
+is per-flow SQL overhead.
+
+This makes #166259 a **watch node**, not a comment target.
+
+The important future trigger is:
+
+```text
+if another bug appears because conversation binding / delivery / revocation owners disagree
+→ do not patch only that call site
+→ test whether a shared authority invariant/helper/contract is now justified
+```
+
+Together with #166503, this provides two distinct authority surfaces:
+
+```text
+session-reader custody / discovery authority
+conversation binding / delivery authority
+```
+
+A third independent occurrence would be a strong threshold for shared institutionalization.

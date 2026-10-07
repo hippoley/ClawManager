@@ -28,12 +28,12 @@ Snapshot: 2026-10-07.
 | [#154735](https://github.com/openclaw/openclaw/pull/154735) | Open | Latest review asks for conflict resolution against current main and refreshed focused validation. |
 | [#154702](https://github.com/openclaw/openclaw/pull/154702) | Open | Review-specific follow-up only. |
 | [#154728](https://github.com/openclaw/openclaw/pull/154728) | Open | Review-specific follow-up only. |
-| [#154829](https://github.com/openclaw/openclaw/pull/154829) | Open — **contributed evidence** | [hippoley current-main integration note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347): identified the source-env vs ambient-env boundary, proposed a minimal current-main-compatible repair, and flagged stale migration-blocker bookkeeping. |
+| [#154829](https://github.com/openclaw/openclaw/pull/154829) | Open — **contributed evidence + patch proposal** | [Integration note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347), [exact patch proposal](https://github.com/hippoley/ClawManager/blob/main/docs/patches/openclaw-154829-current-main.patch), and [upstream follow-up](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6029068588). Current-main analysis shows the runner already owns sourceEnv in coreCtx; the fix can stay at the collector/registration boundary. |
 | [#154837](https://github.com/openclaw/openclaw/pull/154837) | Open | Maintainer review / landing decision; avoid redundant changes. |
 
 ## Public contribution artifacts
 
-- **OpenClaw #154829** — [current-main integration review note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347), authored from `hippoley`. Identified the source-env boundary and a stale migration blocker.
+- **OpenClaw #154829** — [current-main integration review note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347) plus [exact current-main patch proposal](https://github.com/hippoley/ClawManager/blob/main/docs/patches/openclaw-154829-current-main.patch) and [upstream follow-up](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6029068588), authored from `hippoley`. The proposal narrows the fix to explicit env ownership at the disk-space health-check boundary without touching the split runner or ambient process env.
 - **OpenClaw #166364** — [compatibility-proof scoping note](https://github.com/openclaw/openclaw/pull/166364#issuecomment-6029001497), authored from `hippoley`. Proposed a concrete base-vs-candidate repair-output equivalence proof for the stored-data scanner blocker.
 
 ## What counts as a durable GitHub contribution

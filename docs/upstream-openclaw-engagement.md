@@ -193,3 +193,10 @@ Convert at least one active OpenClaw blocker into a public `hippoley` contributi
   1. **canonical-problem chain:** hippoley issue → maintainer implementation → mainline merge;
   2. **invariant-adoption chain:** hippoley semantic distinction → production head adoption → formal reviewer citation.
 - These are the exact kinds of traces that justify moving toward shared runtime conformance / authority policy. Do not dilute them by commenting on adjacent PRs without a new invariant or evidence boundary.
+
+
+## 2026-10-07 authority architecture threshold
+
+- **Shared authority primitive confirmed:** current main `src/shared/effect-authority.ts` already defines cross-adapter prepared effect authority with `assertCurrent / initiate / persist / release`, explicitly retaining database-writer use through commit/settlement boundaries. It is used across Gateway message operations and multiple channel transports. The strategic opportunity is therefore authority-bypass / premature-release / wrong-settlement review, not inventing a second framework.
+- **Third independent authority surface establishes an architecture pattern:** #166503 (custody vs discovery authority), #166506 (caller authority across cold-history preparation/restoration/commit), and #166444/#166259 (worker-prepared facts plus live final-effect authorization) support the recurring invariant: authority must remain current across `prepare → wait → write/initiate → commit/settlement → final effect`.
+- **Authority continuity watch:** #163686 is blocked because metadata-equivalent recreated plugin registrations do not have an explicit lifecycle-owned transfer fact. Current main explicitly preserves exact publication/admission snapshots and states that prepared views do not inherit a successor generation. New invariant to watch: `authority continuity must be explicitly transferred by the lifecycle owner, never inferred from metadata resemblance`. No upstream comment was added because the current review already identifies this decision; enter only if a concrete transfer owner appears or a second subsystem repeats the same mistake.

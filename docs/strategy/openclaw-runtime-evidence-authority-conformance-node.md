@@ -282,3 +282,41 @@ a second canonical issue follows the #166466 pattern and lands through maintaine
 ```
 
 That is the next real admission ticket.
+
+
+## New evidence that the node is becoming externally legible
+
+PR #166503 now supplies the first explicit `invariant -> production code -> reviewer attribution`
+chain.
+
+The accepted distinction was:
+
+```text
+native reader custody != discovery authority
+```
+
+The current production head removed native-sequence presence from the post-cleanup authority
+predicate while preserving genuine revocation/closing checks and the earlier physical-custody
+filter.
+
+ClawSweeper's formal evidence section explicitly links the `hippoley` handoff and states that the
+repair agrees with “hippoley's useful predicate distinction.”
+
+This matters because it crosses a new threshold:
+
+```text
+useful comment
+< author acknowledgement
+< production adoption
+< reviewer attribution to the invariant
+```
+
+The desired next threshold is not another acknowledgement. It is reuse:
+
+```text
+same distinction
+→ shared helper / contract case
+→ applies across multiple owners
+```
+
+That is the point at which the position becomes institutional rather than personal.

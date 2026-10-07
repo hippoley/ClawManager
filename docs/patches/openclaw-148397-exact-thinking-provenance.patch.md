@@ -101,22 +101,12 @@ must not reinterpret why the caller selected or did not select it.
 +  thinkingExplicit?: boolean;
 ```
 
-Use one internal-only runtime field rather than widening `SimpleStreamOptions`:
-
-```ts
-type ThinkingProvenanceStreamOptions = SimpleStreamOptions & {
-  openclawThinkingExplicit?: boolean;
-};
-```
-
-(`SimpleStreamOptions` is already available through the runtime stream type/import surface; use
-the local equivalent import if required by this file's current imports.)
-
-Inside the existing `streamFn` closure:
+Avoid a new `SimpleStreamOptions` import entirely. Use the existing callback parameter type as
+the local owner:
 
 ```diff
 -      return modelRegistryRuntime.llmRuntime.streamSimple(modelResult, context, {
-+      const providerOptions: ThinkingProvenanceStreamOptions = {
++      const providerOptions = {
          ...optionsLocal,
 +        openclawThinkingExplicit: options.thinkingExplicit,
          apiKey: auth.apiKey,
@@ -127,9 +117,14 @@ Inside the existing `streamFn` closure:
              ? { ...attributionHeaders, ...auth.headers, ...optionsLocal?.headers }
              : undefined,
 -      });
++      } as NonNullable<typeof optionsLocal> & {
++        openclawThinkingExplicit?: boolean;
 +      };
 +      return modelRegistryRuntime.llmRuntime.streamSimple(modelResult, context, providerOptions);
 ```
+
+That keeps this file's import surface unchanged and avoids touching `@openclaw/llm-core` public
+types.
 
 ### `src/agents/embedded-agent-runner/run/attempt-session-prepare.ts`
 
@@ -286,18 +281,109 @@ Extend the existing OpenAI thinking contract coverage for **both managed and dir
    - provenance undefined;
    - current candidate behavior preserved during rollout.
 
-## 8. Non-reply owners
+## 8. Non-reply owners — exact stamp points
 
 Do not guess from the resolved effort value.
 
-The production owners already have exact pre-resolution evidence:
+### CLI / agent exec
 
-- reply: existing `thinkingExplicitlySet`;
-- agent exec: caller/configured level before model fallback;
-- cron: `requestedThinkLevel` before `resolveThinkingSelection` fills a model default.
+`src/agents/command/model-selection.ts` already computes:
 
-Those owners should stamp true/false as they are migrated. Until then, undefined preserves current
-candidate behavior.
+```ts
+const immutableThinkLevel = params.requestedThinkLevel ?? configuredThinkLevel;
+const primaryConfiguredThinkLevel =
+  immutableThinkLevel ??
+  resolveConfiguredThinkingDefault({
+    cfg: params.cfg,
+    agentId: params.sessionAgentId,
+    provider,
+    model,
+  });
+```
+
+This is the exact provenance boundary. `resolveConfiguredThinkingDefault()` reads real caller/
+configuration sources, while `resolveThinkingSelection(...)` is the later model-capability/default
+resolver.
+
+Return one additional fact beside `effectiveTurnThinkLevel`:
+
+```diff
+     immutableThinkLevel,
+     effectiveTurnThinkLevel: primaryThinking.requestedLevel,
++    thinkingExplicit: primaryConfiguredThinkLevel !== undefined,
+     sessionFile,
+```
+
+Then carry that fact into the `AgentRunModelOptions` object for the admitted CLI/agent-exec run.
+
+### Subagent spawn
+
+Subagent ownership is more precise than simple parent inheritance.
+
+`src/agents/subagents/spawn/subagent-spawn-thinking.ts` already distinguishes:
+
+1. explicit `params.thinkingOverrideRaw`;
+2. requester-agent `subagents.thinking`;
+3. target-agent `subagents.thinking`;
+4. global `agents.defaults.subagents.thinking`;
+5. caller/requester persisted/active `callerThinkingRaw`.
+
+The current owner:
+
+```ts
+const resolvedThinkingDefaultRaw =
+  requesterAgentConfig?.subagents?.thinking ??
+  targetAgentConfig?.subagents?.thinking ??
+  cfg.agents?.defaults?.subagents?.thinking;
+
+const overrideCandidateRaw = thinkingOverrideRaw || resolvedThinkingDefaultRaw;
+```
+
+can return provenance directly:
+
+```diff
+     return {
+       status: "ok" as const,
+       thinkingOverride: normalizedThinking,
++      thinkingExplicit: true,
+       initialSessionPatch: {
+         thinkingLevel: normalizedThinking,
+       },
+     };
+@@
+   return {
+     status: "ok" as const,
+     thinkingOverride: undefined,
++    thinkingExplicit: normalizedThinking !== undefined,
+     initialSessionPatch: normalizedThinking ? { thinkingLevel: normalizedThinking } : {},
+   };
+```
+
+Why `normalizedThinking !== undefined` is correct in the inherited branch:
+
+- `callerThinkingRaw` comes from the active requester's thinking level or persisted requester
+  preference;
+- it is therefore an actual selected/session preference, not a child-model capability fallback.
+
+`src/agents/subagents/spawn/subagent-spawn-child-plan.ts` already passes
+`thinkingOverrideRaw` and `callerThinkingRaw` into this owner. Carry the returned
+`thinkingExplicit` beside the child run's selected thinking level when constructing the child
+session/run.
+
+This avoids blindly inheriting the parent's provenance when the child has its own
+`subagents.thinking` override.
+
+### Cron
+
+Keep the same rule already identified for cron: stamp true when its pre-resolution
+`requestedThinkLevel` exists; false only when the final level is supplied solely by model
+capability/default resolution.
+
+### Unknown internal callers
+
+Leave `thinkingExplicit` undefined until their owner is audited. The request helper deliberately
+treats undefined as current candidate behavior, so migrating Gateway/CLI/subagent paths does not
+silently suppress effort elsewhere.
 
 ## Focused validation
 
@@ -310,3 +396,16 @@ git diff --check
 ```
 
 Status: source-reviewed against `7a88f9441f37d076b6b6c8dbf4529e812748aab7`; not executed.
+
+
+## Self-audit refresh (2026-10-07)
+
+- Current `sdk.ts` does not import `SimpleStreamOptions`; the revised closure uses
+  `NonNullable<typeof optionsLocal>` and requires no new public/runtime type import.
+- Current `resolveEmbeddedModelSelection()` exposes the exact CLI provenance boundary:
+  `primaryConfiguredThinkLevel !== undefined` before model fallback selection.
+- Current subagent thinking owner has an explicit precedence chain and can stamp provenance without
+  inspecting the final resolved effort.
+- The shared `resolveChatTemplateReasoningEffort()` helper exists on this PR head and is called by
+  both managed and direct Chat Completions paths, so one provenance gate remains the correct
+  serialization owner.

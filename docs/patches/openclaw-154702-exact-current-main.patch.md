@@ -268,3 +268,17 @@ req.timeoutMs omitted
 ```
 
 Status: exact source patch adapted to current main; not executed in this environment.
+
+
+## Self-audit / portability check (2026-10-07)
+
+Verified against current main and the candidate branch:
+
+- `buildTimeoutAbortSignal` accepts `timeoutMs?: number`; passing `req.timeoutMs` directly is type-correct and intentionally yields no operation signal when omitted.
+- `openclaw/plugin-sdk/extension-shared` is the established extension import path for `buildTimeoutAbortSignal`.
+- `resolveApiKeyForProvider` accepts `signal`.
+- `postJsonRequest` accepts `signal`.
+- Current-main `extensions/google/image-generation-provider.test.ts` still imports both `providerAuthRuntime` and `providerHttp`, so the candidate's three fake-timer regressions can be appended without introducing a new test seam.
+- Candidate branch `fix/google-generation-credential-abort-signal-080` uses the same three regression names documented above.
+
+This confirms the patch is portable at the current API/test-seam level. It remains source-reviewed, not locally executed.

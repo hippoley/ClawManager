@@ -27,14 +27,15 @@ Snapshot: 2026-10-07.
 | [#166361](https://github.com/openclaw/openclaw/pull/166361) | Open | Add timing/runtime evidence only if it is missing from the latest revision; do not duplicate existing benchmark data. |
 | [#154735](https://github.com/openclaw/openclaw/pull/154735) | Open | Latest review asks for conflict resolution against current main and refreshed focused validation. |
 | [#154702](https://github.com/openclaw/openclaw/pull/154702) | Open | Review-specific follow-up only. |
-| [#154728](https://github.com/openclaw/openclaw/pull/154728) | Open | Review-specific follow-up only. |
+| [#154728](https://github.com/openclaw/openclaw/pull/154728) | Open — **contributed evidence plan** | [Gateway behavior proof plan](https://github.com/hippoley/ClawManager/blob/main/docs/evidence/openclaw-154728-gateway-proof-plan.md) + [upstream note](https://github.com/openclaw/openclaw/pull/154728#issuecomment-6029090885). The proposal uses the real `agent.wait` handler and production agent-job owners to prove completion survives later queue / gateway-draining observations, including measured one-worker timing. |
 | [#154829](https://github.com/openclaw/openclaw/pull/154829) | Open — **contributed evidence + patch proposal** | [Integration note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347), [exact patch proposal](https://github.com/hippoley/ClawManager/blob/main/docs/patches/openclaw-154829-current-main.patch), and [upstream follow-up](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6029068588). Current-main analysis shows the runner already owns sourceEnv in coreCtx; the fix can stay at the collector/registration boundary. |
 | [#154837](https://github.com/openclaw/openclaw/pull/154837) | Open | Maintainer review / landing decision; avoid redundant changes. |
 
 ## Public contribution artifacts
 
 - **OpenClaw #154829** — [current-main integration review note](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6028995347) plus [exact current-main patch proposal](https://github.com/hippoley/ClawManager/blob/main/docs/patches/openclaw-154829-current-main.patch) and [upstream follow-up](https://github.com/openclaw/openclaw/pull/154829#issuecomment-6029068588), authored from `hippoley`. The proposal narrows the fix to explicit env ownership at the disk-space health-check boundary without touching the split runner or ambient process env.
-- **OpenClaw #166364** — [compatibility-proof scoping note](https://github.com/openclaw/openclaw/pull/166364#issuecomment-6029001497), authored from `hippoley`. Proposed a concrete base-vs-candidate repair-output equivalence proof for the stored-data scanner blocker.
+- **OpenClaw #166364** — [compatibility-proof scoping note](https://github.com/openclaw/openclaw/pull/166364#issuecomment-6029001497), authored from `hippoley`. The subsequent ClawSweeper revision explicitly concluded that the previous migration-proof blocker is unsupported by the diff.
+- **OpenClaw #154728** — [Gateway behavior proof plan](https://github.com/hippoley/ClawManager/blob/main/docs/evidence/openclaw-154728-gateway-proof-plan.md) and [upstream evidence note](https://github.com/openclaw/openclaw/pull/154728#issuecomment-6029090885), authored from `hippoley`. This narrows the remaining proof request to an existing real Gateway handler / agent-job integration path rather than another isolated merge-owner unit test.
 
 ## What counts as a durable GitHub contribution
 

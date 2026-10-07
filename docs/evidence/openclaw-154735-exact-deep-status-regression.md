@@ -94,21 +94,41 @@ import {
 } from "./health-format.js";
 ```
 
-Then, alongside the existing delivery-queue line:
+Do **not** feed these operational lines through the generic channel-row parser.
+
+Current main classifies any detail beginning with `disabled` as `OFF`, so
+`Config hot reload: disabled (watcher retries exhausted...)` would be misclassified even
+though watcher exhaustion is an operational failure.
+
+Keep channel parsing unchanged, then append these formatter outputs explicitly as `WARN` rows:
 
 ```ts
-for (const operationalLine of [
+for (const line of [
   formatContextEngineHealthLine(params.health),
   formatDeliveryQueueHealthLine(params.health),
   formatConfigReloadHealthLine(params.health),
 ]) {
-  if (operationalLine) {
-    healthLines.push(operationalLine);
+  if (!line) {
+    continue;
   }
+  const colon = line.indexOf(":");
+  rows.push({
+    Item: line.slice(0, colon),
+    Status: theme.warn("WARN"),
+    Detail: line.slice(colon + 1).trim(),
+  });
 }
 ```
 
-The existing row parser will classify both new warning strings as `WARN` because neither begins with an OK/OFF/LINKED prefix.
+This matches the reviewed branch's semantic distinction:
+
+- intentionally disabled channel -> `OFF`;
+- exhausted config-reload watcher -> `WARN`;
+- quarantined context engine -> `WARN`;
+- delivery dead-letter / ingress pressure -> `WARN`.
+
+The exact regression above is useful precisely because it catches the accidental
+`disabled => OFF` misclassification.
 
 Suggested focused validation:
 
@@ -121,7 +141,17 @@ Self-check notes (2026-10-07):
 - current test file already imports `expectDefined`, `stripAnsi`, `buildStatusCommandReportData`, and `createStatusCommandReportDataParams`;
 - current protocol schema confirms the context-engine and config-reload fixture shapes above;
 - using object spread avoids mutating a possibly narrowed fixture object;
-- expected row details exactly match the current shared formatter output after the table parser strips the prefix before the first colon;
+- expected row details exactly match the current shared formatter output after explicit operational-row splitting at the first colon;
 - source-reviewed, not executed.
 
 Status: source-reviewed against current main; not executed in this environment.
+
+
+## Correction note
+
+An earlier version of this artifact proposed appending the operational formatter strings into the
+generic `healthLines` parser. That was incorrect for config reload: current main maps details
+starting with `disabled` to `OFF`, while an exhausted reload watcher is an operational failure
+and must be `WARN`.
+
+The corrected integration above mirrors the reviewed branch's explicit WARN-row handling.

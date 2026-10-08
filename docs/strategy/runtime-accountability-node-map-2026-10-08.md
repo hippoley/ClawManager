@@ -206,3 +206,36 @@ Stop investing in a node if:
 - another contributor has already occupied the exact implementation slot and the remaining work would be redundant.
 
 The goal is sparse, durable position — not maximal activity.
+
+
+---
+
+## 2026-10-08 position update — Temporal Agent Harness #174
+
+Public entry:
+- https://github.com/temporal-community/temporal-agent-harness/issues/174
+
+This moves **Durable Authority Continuity** from a private/public artifact-only node into a second runtime's own issue tracker.
+
+Current stage:
+
+```
+知 -> complete enough to state the distinction
+行 -> public probe/contract issue opened
+验 -> waiting for external behavior
+立 -> not yet
+迁 -> started, not completed
+制 -> not yet
+```
+
+Interpretation:
+
+- This is stronger than independent convergence because the contract is now visible inside another runtime's design surface.
+- It is weaker than cross-repo reuse because no maintainer or contributor has accepted, cited, requested, or implemented it yet.
+- Do not add more comments unless new source evidence or an external response changes the decision boundary.
+
+Next identity upgrade trigger:
+- maintainer confirms one intended semantic and asks for a regression;
+- contributor implements the probe/test;
+- issue is incorporated into docs/contract/tests;
+- or the same conformance vector is reused by another runtime.

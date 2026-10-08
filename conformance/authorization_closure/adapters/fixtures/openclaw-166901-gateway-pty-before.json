@@ -1,0 +1,8 @@
+{
+  "route": "Gateway PTY",
+  "timing": "before",
+  "nativeLaunches": 0,
+  "markerExists": false,
+  "operation_id": "openclaw-166901-gateway-pty-before",
+  "revocation_id": "openclaw-166901-policy-revocation"
+}

@@ -1,192 +1,203 @@
 # Temporal Agent Harness probe — durable approval vs current authority
 
-Status: source-reviewed probe contract, not yet executed
+Status: source-reviewed probe contract, not yet executed against the Temporal test server
 Target: temporal-community/temporal-agent-harness
 Source snapshot reviewed: c0f148f90499728a1fd305d7229113970c305f1a
 
-## Why probe this boundary
+## Scope correction
 
-The harness deliberately makes approvals durable and supports runtime policy updates.
-
-Current source also states that a more restrictive policy update:
-- swaps the live policy;
-- re-evaluates still-PENDING approvals;
-- leaves already-resolved approvals unchanged.
-
-The gate then wakes, finalizes the already-approved outcome, and returns to the tool dispatcher.
-
-That behavior may be intentional.
-
-The unresolved design question is:
-
-> Does a historical approval represent immutable authorization for that exact tool call, or should a stronger current authority boundary be revalidated immediately before an external dispatch?
-
-This probe should establish current behavior before proposing any change.
-
-## Existing source behavior
-
-### Resolution
-
-`_apply_approval_policy(...)`:
-- registers a pending approval;
-- waits for human / auto / policy cascade;
-- after an approved outcome, returns.
-
-### Policy update
-
-`_apply_policy_update(new_policy)` explicitly documents:
-
-> A more restrictive update simply leaves pending calls pending.
-
-It only iterates `pending_approval_entries()`.
-
-Resolved approvals are retained as history but are not re-evaluated.
-
-### Dispatch
-
-The activity/workflow tool wrapper calls the approval gate before tool execution.
-
-Therefore there is a narrow scheduling window to test:
+An earlier version of this probe assumed a stable workflow-side window between:
 
 ```
-approval resolves APPROVED
-        ↓
-policy becomes more restrictive
-        ↓
-tool has not externally executed yet
-        ↓
-does dispatch still proceed?
+approval resolved
+-> policy becomes stricter
+-> activity dispatch
 ```
 
-## Probe TAH-DAC-B1 — resolved approval followed by restrictive policy revision
+A deeper source pass does **not** support that assumption.
+
+For an activity-backed tool, current main is effectively:
+
+```python
+await _apply_approval_policy(...)
+return await workflow.execute_activity(...)
+```
+
+Once the parked approval gate resumes, the activity scheduling command follows directly on the same workflow execution path.
+
+Therefore this probe no longer asks whether a normal runtime policy update can interleave before activity scheduling. The meaningful remaining boundary is later:
+
+> an invocation was approved and durably scheduled, but its irreversible external effect has not happened yet; authority/policy is then revoked or tightened.
+
+That is an execution-revocation question, not a pre-dispatch approval race.
+
+## Current source contract already established
+
+### Historical approval
+
+A pending gate can become durably APPROVED and its `ToolApprovalResolved` event is retained in history.
+
+### Runtime policy updates
+
+`_apply_policy_update()` re-evaluates still-PENDING approvals.
+
+A more restrictive update leaves pending calls pending.
+
+Resolved approvals are not re-opened.
+
+### Activity scheduling
+
+After `_apply_approval_policy()` returns approved, the activity dispatcher immediately issues `workflow.execute_activity(...)`.
+
+So the current architecture strongly suggests this semantic family:
+
+```
+approval for exact invocation
+-> durable activity scheduling
+```
+
+with later policy updates primarily governing pending/future work.
+
+The remaining question is whether revocation has any authority over already-scheduled but not-yet-effective work.
+
+## Probe TAH-DAC-R1 — revoke after schedule, before irreversible effect
 
 ### Goal
 
-Establish current semantics without asserting that either result is wrong.
+Establish whether an already-authorized invocation remains authoritative once scheduled, even if a stricter policy is installed before its real external side effect.
 
-### Setup
+This is a behavioral probe, not a proposed fix.
 
-Use an activity-backed side-effect probe tool whose activity body:
-- increments a durable/local counter;
-- records a `tool_start`;
-- can be held behind a deterministic workflow-side barrier before actual activity scheduling if the existing test harness exposes such a seam.
+### Test shape
 
-Agent begins with:
+Add an activity-backed probe tool whose activity body has two phases:
 
-```
-ToolApprovalPolicy.always_require_human_approval()
-```
+1. publish/record that the Temporal Activity has started;
+2. wait on a test-controlled barrier **before** incrementing the irreversible side-effect counter.
 
-### Sequence
+Then:
 
-1. Start one gated activity tool call.
-2. Observe `tool_approval_requested`.
-3. Submit explicit human approval for that exact `tool_id`.
-4. Confirm `tool_approval_resolved(approved=True)` is in history.
-5. Before the real activity is allowed to execute, update the live policy/posture to a stricter state that would not authorize a fresh equivalent call.
-6. Release the dispatch barrier.
-7. Observe whether the tool activity executes.
+1. start the agent under `always_require_human_approval()`;
+2. invoke the gated activity tool;
+3. observe `tool_approval_requested`;
+4. approve the exact `tool_id`;
+5. observe `tool_approval_resolved(approved=True)`;
+6. wait until the activity body has started and is blocked before the side effect;
+7. install a stricter live policy / authority posture;
+8. release the activity-side barrier;
+9. observe whether the irreversible counter changes.
 
-### Record, do not pre-judge
+### Interpretations
 
-If activity executes:
+If the side effect proceeds:
 
 ```
-current contract =
-approval is authority for that already-approved invocation
-even after later policy tightening
+contract A:
+approval authorizes the exact invocation durably;
+later policy changes govern pending/future work,
+not already-scheduled execution
 ```
 
-If activity does not execute:
+If the activity is cancelled/prevented:
 
 ```
-current contract =
-historical approval is preserved
-but dispatch authority is revalidated
+contract B:
+current authority can revoke already-scheduled
+but not-yet-effective execution
 ```
 
-Either result is valuable because the contract becomes explicit.
+Either can be coherent. The important thing is to make the contract explicit.
 
-## Probe TAH-DAC-B2 — crash/replay between approval and dispatch
+## Probe TAH-DAC-R2 — worker restart while activity is authorized but not yet effective
 
-Repeat the same logical sequence, but force a worker restart / workflow replay after approval and before external dispatch.
+Repeat R1, but restart the worker while the activity is blocked before its external effect.
 
 Record:
-- whether approval is replayed without duplicate prompt;
-- whether the latest live policy/posture is restored;
-- whether execution occurs;
-- which policy revision is visible in the event/audit record.
 
-This is the durable-authority version of B1.
+- whether the activity is retried/resumed;
+- whether historical approval is reused;
+- whether latest policy state affects the retried activity;
+- whether the external side effect occurs once, zero times, or more than once.
 
-## Probe TAH-DAC-B3 — remembered approval vs later restrictive posture
+This combines durable approval with Temporal Activity retry semantics.
 
-1. Approve a tool with `remember=True`.
-2. Confirm live policy allow-lists the tool.
-3. Replace posture with a stricter policy that removes that allow-list.
-4. Issue a *new* call of the same tool.
+## Probe TAH-DAC-R3 — control: new call after restrictive posture
 
-Current docs indicate a posture replaces the allow-list, so the fresh call should be governed by the new policy.
+After the stricter policy is installed, submit a fresh equivalent tool call.
 
-This control distinguishes:
-- future-call policy replacement, which appears specified;
-- already-resolved invocation authority, which is the B1/B2 question.
+Expected under current documented behavior:
 
-## Required evidence
+- the new/pending call is governed by the new policy;
+- any remembered allow-list removed by the posture stays removed.
 
-Capture:
+This distinguishes:
+- already-authorized scheduled work;
+- new work after the authority revision.
+
+## Evidence to capture
+
 - ordered AgentEvent stream;
-- approval id / tool id;
-- approval result;
-- policy state before and after update;
-- tool_start/tool_end presence;
-- actual side-effect counter;
-- replay/restart point for B2.
+- exact tool_id;
+- ToolApprovalResolved;
+- ToolStart/ToolEnd/ToolError;
+- live approval policy before and after change;
+- activity-start barrier state;
+- external side-effect counter;
+- worker restart point for R2.
 
-Do not infer execution from an event alone if the activity body can provide a direct side-effect observation.
+## What this probe does not claim
 
-## Why this is not merely a Temporal question
+It does not claim:
+- a security vulnerability;
+- that policy updates should cancel in-flight activities;
+- that approval must be revalidated twice;
+- that Temporal should introduce an authority revision abstraction.
 
-The same boundary exists wherever:
-- approvals live longer than processes;
-- policy/identity can change during a wait;
-- external side effects happen after durable recovery.
+It only asks whether the execution-revocation semantics are explicit and test-pinned.
 
-Potential systems include:
-- durable agent runtimes;
-- workflow engines;
-- payment/refund agents;
-- privileged automation;
-- human-in-the-loop infrastructure;
-- robot/IoT control planes.
+## Durable Authority distinction
 
-## Possible future contract
-
-Only if the probe demonstrates a real ambiguity worth changing should the runtime consider an explicit distinction such as:
+The corrected boundary is now:
 
 ```
-approval_decision_revision
-current_authority_revision
-execution_generation
+historical approval
+!=
+necessarily revocable scheduled execution
 ```
 
-or a pre-dispatch authorization callback.
+and the system must choose/document whether:
 
-Do not add these abstractions unless a deterministic scenario proves they are needed.
+```
+approval -> exact invocation authority is durable
+```
 
-## Five-gate score
+or:
+
+```
+current authority can cancel not-yet-effective work
+```
+
+This is more precise than the earlier pre-dispatch framing.
+
+## Five-gate score after correction
 
 External dependence:
-High if the harness/Oso security direction needs an explicit replay-safe authority contract.
+High only if maintainers/users need revocation semantics for long-running privileged activities.
 
 6-12 month credential:
-High if converted into a merged regression or documented contract.
+High if the contract becomes a regression/documented behavior.
 
 5-10 year portability:
-High; authorization continuity across durable execution is framework-independent.
+High; scheduled-work revocation exists in workflows, job systems, payment pipelines, robots, and cloud control planes.
 
 Anti-commoditization:
-High; stronger models do not eliminate changing permissions or real side effects.
+High; stronger models do not remove the need to define whether revoked authority stops already-scheduled effects.
 
 Innovation + production consequence:
-Potentially high, but only after the probe distinguishes a real contract gap.
+Potentially high, but only if the runtime experiment shows a meaningful policy/side-effect boundary.
+
+## Stop condition
+
+If maintainers explicitly define approvals as irrevocable authority for the exact invocation once scheduled, and that behavior is already sufficiently documented/tested, stop investing here.
+
+The goal is to clarify a real execution boundary, not to manufacture an extra authorization layer.

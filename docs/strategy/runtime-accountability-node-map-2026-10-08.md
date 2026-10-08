@@ -486,3 +486,35 @@ fix/regression landed = NOT YET
 public attribution = NOT YET
 
 Do not count this as cross-repo adoption until external confirmation exists.
+
+
+---
+
+## 2026-10-08 standards-entry update — revocation closure / AAP
+
+New standards-level actions:
+- Sent an evidence-based AAP protocol review to info@opena2a.org covering revocation after grant resolution but before a consequential effect, including queued work and derived downstream credentials.
+- Sent implementation evidence to the author of draft-watts-oauth-agent-revocation-closure-00, explicitly offering a worked example / executable conformance appendix rather than claiming novelty over the draft.
+
+External evidence used:
+- AAP already specifies grant revocation, revocation propagation, and mandatory revocation-list checks at every resolution.
+- The broker then obtains downstream credentials / schedules work / performs consequential effects after that resolution boundary.
+- draft-watts-oauth-agent-revocation-closure-00 already formalizes request != invalidation != closure and CLOSED/PARTIAL/UNKNOWN semantics.
+- Open Agent Auth provides a concrete independent implementation case where revocation recorded at the authority is not visibly enforced at the Resource Server acceptance path.
+
+Positioning correction:
+Do NOT claim invention of revocation closure. The standards contribution position is now:
+implementation evidence + executable conformance + review of post-resolution authority closure.
+
+Current stage:
+standards-relevant invariant evidenced = YES
+independent implementation evidence = YES
+AAP review submitted = YES
+IETF draft author contacted = YES
+external response = NOT YET
+co-author / issue / PR request = NOT YET
+spec text accepted = NOT YET
+conformance appendix accepted = NOT YET
+
+Identity significance:
+This is the first step from cross-repo runtime/accountability work toward external protocol/standards participation. It is only an entry signal until a standards author or maintainer actually responds or consumes the material.

@@ -241,3 +241,76 @@ later response truncation
 ```
 
 while the exact-owner fixture prevents the repair from becoming a generic "any tool event resets the clock" rule.
+
+
+## Coverage correction: worker-local ownership is not sufficient
+
+A later source audit found an important coverage gap in the earlier preferred patch direction.
+
+`markDiagnosticOwnedToolActivity(owner, ...)` is currently used by the **worker turn owner** path. The canonical #166770 report, however, concerns native/embedded async tool execution. Therefore, extending only that worker-local API would preserve the right semantics but would **not** cover the reported embedded path.
+
+This rules out a worker-only patch as the canonical fix.
+
+### Embedded path facts
+
+The embedded runner already owns an exact `DiagnosticEmbeddedRunOwner` in
+`attempt-stream-prepare.ts`.
+
+The ordinary tool wrapper emits trusted terminal events from
+`agent-tools.before-tool-call.wrapper.ts` after classifying the actual result as:
+
+- `tool.execution.completed`
+- `tool.execution.error`
+- `tool.execution.blocked`
+
+But the hook/tool execution context currently carries run/session identity rather than the exact
+diagnostic owner generation.
+
+So the missing fact is not terminal truth; terminal truth already exists. The missing fact is
+**terminal truth bound to the exact embedded-run owner**.
+
+### Revised preferred repair boundary
+
+The canonical repair should thread exact embedded-run diagnostic provenance into the ordinary tool
+execution terminal accounting path, using the existing diagnostic owner rather than inventing
+another generation system.
+
+Conceptually:
+
+```
+DiagnosticEmbeddedRunOwner
+        ↓
+tool execution admission / terminal provenance
+        ↓
+tool.execution.completed
+        ↓
+verify exact current owner
+        ↓
+semantic progress
+```
+
+while `error`, `blocked`, closed-owner, replacement-owner, and unbound delayed terminal cases do
+not clear repeated-request stagnation.
+
+Implementation can choose the smallest private mechanism that preserves this property:
+
+1. pass/capture a private diagnostic-owner provenance object alongside the wrapped tool execution;
+2. attach that provenance to trusted tool lifecycle metadata and consume it in run-activity
+   accounting; or
+3. invoke an owner-bound terminal accounting helper directly from the wrapped execution path.
+
+The important constraint is that **runId/sessionId equality is not a substitute for exact owner
+provenance**, and the provenance should remain private to runtime diagnostics rather than becoming a
+plugin-facing authority surface.
+
+### What is now rejected
+
+The following patch shapes are explicitly rejected as incomplete or unsafe:
+
+- broadening `isSemanticModelCallResult()`;
+- treating generic `recordToolEnded()` as semantic;
+- extending only the worker-owner path;
+- treating matching run/session IDs as proof of current ownership.
+
+This correction narrows the actual canonical fix to the embedded execution owner boundary that
+#166770 exercises.

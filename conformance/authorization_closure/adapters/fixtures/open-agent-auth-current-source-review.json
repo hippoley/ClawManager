@@ -1,0 +1,6 @@
+{
+  "revocationServiceTestPassed": true,
+  "resourceServerObservedRevocation": false,
+  "operation_id": "open-agent-auth-current-source-review",
+  "revocation_id": "open-agent-auth-authority-side-revocation"
+}

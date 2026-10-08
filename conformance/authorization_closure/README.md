@@ -113,3 +113,42 @@ Do not grow this into an abstract taxonomy.
 - real third-party adapter: not yet;
 - independent reuse: not yet;
 - standards adoption: not yet.
+
+
+## Independent-runtime evidence adapters
+
+The harness now consumes evidence from two independent systems:
+
+### OpenClaw
+
+Adapter:
+- `adapters/openclaw_exec_launch_policy.py`
+
+Evidence source:
+- merged OpenClaw launch-policy regression around native child / PTY / Claude process construction authority.
+
+Current mapped result for the upstream pre-launch revocation case:
+- `CLOSED`
+
+### Open Agent Auth
+
+Adapter:
+- `adapters/open_agent_auth_revocation.py`
+
+Evidence sources:
+- upstream `InMemoryTokenRevocationServiceTest` proves authority-side `revoke -> isRevoked`;
+- current AOAT / Resource Server source review does not establish that the Resource Server consumes that revocation state.
+
+Current mapped result:
+- `UNKNOWN`
+
+This is intentional. Missing sink-enforcement evidence must not be promoted into either `CLOSED` or `VIOLATION`.
+
+## CI
+
+Workflow:
+- `.github/workflows/authorization-closure-conformance.yml`
+
+The workflow runs the core evaluator tests plus both independent-runtime adapter tests whenever this conformance directory changes.
+
+A configured CI workflow is not the same as third-party adoption. The stronger milestones remain native telemetry, an external adapter contribution, or standards/conformance reuse.

@@ -1,0 +1,10 @@
+{
+  "operation_id": "payment-43",
+  "revocation_id": "revocation-10",
+  "sinks": ["payment-provider"],
+  "events": [
+    {"seq": 1, "type": "authorization_accepted"},
+    {"seq": 2, "type": "revocation_recorded"},
+    {"seq": 3, "type": "effect_committed", "sink": "payment-provider"}
+  ]
+}

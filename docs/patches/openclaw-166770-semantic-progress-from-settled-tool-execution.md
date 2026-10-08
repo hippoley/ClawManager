@@ -185,3 +185,59 @@ The exact field names can follow the existing worker live-event terminal vocabul
 part is not to invent a second ownership system or infer success from the later model response.
 
 This is now the preferred patch direction over modifying `isSemanticModelCallResult()`.
+
+
+## Exact regression seam on current main
+
+Current main already has the right watchdog-level fixture in:
+
+`src/logging/diagnostic.test.ts`
+
+The existing test:
+
+`does not recover repeated requests after semantic output resets the clock`
+
+is the natural behavioral anchor for #166770. A focused sibling regression should preserve its setup and replace the semantic model-output reset with a **successful exact-owner tool settlement**.
+
+A second useful owner-fencing fixture already exists later in the same file:
+
+`prunes stale same-key activity while preserving a different owner's fresh tool`
+
+That case proves the activity layer already distinguishes a fresh exact owner from stale same-key activity.
+
+### Suggested red/green regression shape
+
+1. Start diagnostics and a current embedded-run owner.
+2. Seed repeated-request stagnation exactly as the existing semantic-output test does.
+3. Start a tool under the current owner.
+4. Complete it successfully through the candidate owner-local terminal API.
+5. Advance beyond the previous repeated-request abort threshold.
+6. Assert no `repeated_model_requests_without_progress` recovery is requested.
+7. Observe a later model result ending in `length`; assert it does not undo the already-published semantic progress.
+
+### Negative siblings
+
+Using the same owner fixture, verify the stagnation clock is **not** cleared when the terminal kind is:
+
+- error
+- blocked
+
+and is not cleared when:
+
+- the owner has already been closed/replaced before the terminal signal;
+- only an unbound queued public terminal event arrives for a stale run.
+
+This keeps the proof at the watchdog boundary rather than only unit-testing a helper.
+
+### Why this seam is preferable
+
+It proves the user-visible policy directly:
+
+```
+successful work happened recently
++
+later response truncation
+=> watchdog must not claim no semantic progress
+```
+
+while the exact-owner fixture prevents the repair from becoming a generic "any tool event resets the clock" rule.

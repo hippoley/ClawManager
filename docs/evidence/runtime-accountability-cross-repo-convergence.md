@@ -229,3 +229,56 @@ Current status:
 - formal cross-project role: not established.
 
 The next durable milestone is therefore **cross-repo reuse or a shared executable contract**, not more examples inside one repository.
+
+
+---
+
+## First cross-repo public contract entry — Temporal Agent Harness #174
+
+Public issue:
+- https://github.com/temporal-community/temporal-agent-harness/issues/174
+
+Title:
+- `Clarify durable approval vs current authority across a policy revision before dispatch`
+
+This is the first public attempt in a second mature runtime to move the runtime-accountability work from **independent convergence** toward **cross-repo contract discussion**.
+
+The issue is intentionally framed as a contract clarification and deterministic probe, not as a vulnerability claim.
+
+Narrow question:
+
+```
+historical tool approval is durable
++
+policy / identity authority becomes stricter before real external dispatch
+        ↓
+is the old approval still sufficient authority for that exact invocation?
+or
+must current authority be revalidated?
+```
+
+Current evidence status:
+
+```
+public cross-repo entry        = YES
+maintainer response            = NOT YET
+third-party adoption           = NOT YET
+merged regression / contract   = NOT YET
+cross-repo reuse               = NOT YET
+```
+
+Why this matters:
+
+This is the first transition from:
+
+```
+"another framework independently has similar problems"
+```
+
+to:
+
+```
+"the portable contract has been brought into another runtime's own design surface"
+```
+
+Do not upgrade the identity claim until an external maintainer/contributor actually responds, adopts the distinction, requests a probe, or lands a test/contract.

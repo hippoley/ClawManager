@@ -238,3 +238,104 @@ Do not describe these records as:
 Describe only what the public history proves.
 
 That restraint is part of the credential: authoritative claims should follow authoritative evidence.
+
+
+---
+
+## Precedent E — yielded continuation custody is ownership transfer
+
+Current upstream position:
+- https://github.com/openclaw/openclaw/issues/166771
+
+Public repair contract:
+- `openclaw-166771-yielded-continuation-custody-transfer.md`
+
+Durable fact under review:
+A requester can relinquish active execution while still owing a future visible continuation through an exact durable child owner. Recovery must distinguish retained continuation custody from a permanently blocking recovery fence.
+
+Portable invariant:
+
+> **A yielded run may relinquish active execution while retaining a durable obligation; recovery must transfer that obligation to the exact continuation owner instead of confusing retained custody with permanent admission denial.**
+
+Why it survives model progress:
+The failure occurs in local admission/recovery ownership before a new model request begins. Better language models cannot repair a runtime that refuses to admit the continuation.
+
+Future domains:
+- durable agent orchestration
+- workflow engines
+- distributed sagas
+- child-task joins
+- crash/restart recovery
+- actor/message ownership transfer
+- long-running AI agents
+
+Innovation / landing value:
+The current source already exposes a precise continuation predicate (exact owner object + stable rearm generation), so the research question is not speculative. It can be converted into a bounded admission/recovery contract with positive settle-wake/user-input regressions and stale-owner negative controls.
+
+Status:
+Not externally adopted or merged yet. Do not cite as a landed precedent.
+
+---
+
+# Five-gate research selection rule
+
+A new direction is worth public investment only when it can plausibly pass all five gates.
+
+## Gate 1 — external dependence
+
+Can a maintainer, contributor, downstream system, test suite, or policy actually consume the result?
+
+Reject work whose only output is a clever explanation that nobody needs to depend on.
+
+## Gate 2 — 6-12 month credential durability
+
+Will public history still prove a scarce capability after implementation details move?
+
+Prefer merged precedents, regression tests, explicit third-party credit, and canonical ownership records.
+
+## Gate 3 — 5-10 year portability
+
+Does the contribution encode a durable systems principle rather than knowledge of one repository's current file layout?
+
+Prefer ownership, settlement, replay, recovery, authority, provenance, and conformance boundaries.
+
+## Gate 4 — anti-commoditization
+
+Would a much stronger general-purpose model make the problem disappear?
+
+Prefer work that depends on real runtime state, exact ownership, durable evidence, physical/external side effects, governance, or cross-system conformance.
+
+A model can help discover and implement these repairs, but cannot make the underlying accountability boundary unnecessary.
+
+## Gate 5 — innovation with production consequence
+
+Does the work introduce a genuinely better distinction, contract, proof method, or boundary that changes real system behavior?
+
+Reject novelty that has no operational consequence.
+
+The strongest candidates are where a new semantic distinction enables a smaller, safer production repair.
+
+---
+
+# 知行合一 / knowledge-action test
+
+For this program, an idea is not considered learned until it changes observable engineering behavior.
+
+```
+知:
+identify the authoritative fact and its owner
+
+行:
+encode it as a bounded repair, regression, provenance record, or upstream review intervention
+
+验:
+observe independent review/adoption/merge/reuse
+
+复:
+carry the same invariant into a new boundary without copying repository-specific wording
+```
+
+A concept that never reaches `行` is only interpretation.
+An implementation without `知` is local patching.
+A merged change without `验` is useful but not yet social capital.
+Repeated independent reuse is what turns the result into position.

@@ -275,3 +275,109 @@ The next legitimate upgrade remains external:
 - a framework adapter reproducing one DAC scenario;
 - a merged regression or documented contract;
 - or reuse by a second runtime.
+
+
+---
+
+## 2026-10-08 fit correction — Temporal Harness vs durable authorization
+
+A deeper source pass changes the node fit.
+
+### Temporal Agent Harness #174
+
+Issue:
+- https://github.com/temporal-community/temporal-agent-harness/issues/174
+
+What the source actually supports:
+
+- `ToolApprovalPolicy` controls gating / auto-approval;
+- restrictive updates re-evaluate still-pending calls;
+- there is currently no general deny-list / authority-revision surface;
+- after an approval gate returns, activity scheduling follows directly on the same workflow execution path.
+
+Therefore:
+
+```
+ToolApprovalPolicy tightening
+!=
+general authorization revocation
+```
+
+and the harness is **adjacent evidence**, not yet the best production host for Durable Authority Continuity.
+
+Public correction was posted to #174 rather than forcing an implementation thesis onto the wrong abstraction.
+
+### Node status change
+
+```
+Temporal Agent Harness approval layer
+FROM: primary Durable Authority implementation candidate
+TO:   semantic clarification / adjacent precedent
+```
+
+Do not open a PR here unless maintainers identify an explicit revocation/cancellation contract they want to add.
+
+---
+
+## Promoted forming node — identity propagation + policy enforcement inside durable execution
+
+Temporal publicly announced on 2026-10-06 that the Oso team joined to accelerate agent security, explicitly naming:
+- identity propagation;
+- policy enforcement;
+- agents calling tools and acting on vital data;
+- security built natively into the execution platform.
+
+This is a much better conceptual host for Durable Authority Continuity than the current Harness approval gate.
+
+Current public Temporal primitives already expose adjacent pieces:
+- context propagation across Workflow / Activity / Child Workflow boundaries;
+- interceptors for authorization/header manipulation;
+- server-side ClaimMapper / Authorizer for Temporal API calls.
+
+But these are not yet the same as an agent-action authority contract.
+
+The forming gap is:
+
+```
+caller / user / agent identity
++
+policy decision
++
+durable workflow history
++
+activity execution generation
++
+external side effect
+        ↓
+what authority must be propagated / revalidated / revoked across recovery?
+```
+
+### Enter only when a real public surface appears
+
+Act publicly when one of these appears:
+
+1. an Oso/Temporal agent-security repository or SDK API for identity/policy propagation;
+2. a design issue defining authorization across Workflow -> Activity / tool boundaries;
+3. a concrete sample where user/agent authority is persisted or propagated into long-lived tool execution;
+4. an API that distinguishes historical approval from current execution authorization;
+5. a maintainer request for conformance / replay / revocation semantics.
+
+Until then:
+
+```
+observe + preserve early evidence
+!=
+invent an API or issue before the owning surface exists
+```
+
+### Why this node outranks the Harness gate
+
+It has a plausible path to:
+- real enterprise dependence;
+- security/governance ownership;
+- cross-SDK semantics;
+- durable identity contracts;
+- standards/conformance;
+- long-horizon role durability.
+
+This is the current highest-upside early node for the Runtime Accountability program.

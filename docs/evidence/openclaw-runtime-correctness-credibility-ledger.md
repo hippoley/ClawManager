@@ -73,12 +73,18 @@ https://github.com/openclaw/openclaw/issues/166770
 Public repair contract:
 https://github.com/hippoley/ClawManager/blob/main/docs/patches/openclaw-166770-semantic-progress-from-settled-tool-execution.md
 
+Candidate implementation boundary:
+https://github.com/hippoley/ClawManager/blob/main/docs/patches/openclaw-166770-candidate-implementation-boundary.md
+
 Current status:
 - canonical P1 issue;
 - source repro / fix-shape-clear / queueable-fix;
 - no fixing PR found at the time of intervention;
 - automatic implementation stopped before deterministic gates completed;
-- hippoley posted a bounded owner/settlement repair contract.
+- hippoley posted a bounded owner/settlement repair contract;
+- later source review corrected a worker-only coverage mistake and aligned the candidate repair with the repository's existing event-object + owner-generation provenance pattern;
+- a separate candidate implementation-boundary artifact now freezes the proven parts and explicitly leaves only the host-private embedded-owner injection seam unresolved;
+- no third-party adoption or routing of #166770 had appeared at the latest refresh.
 
 Durable capability being tested:
 - distinguish model response shape from actual execution truth;

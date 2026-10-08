@@ -314,3 +314,70 @@ The following patch shapes are explicitly rejected as incomplete or unsafe:
 
 This correction narrows the actual canonical fix to the embedded execution owner boundary that
 #166770 exercises.
+
+
+## Existing provenance pattern to reuse
+
+Current main already has the exact pattern needed for a safe implementation in
+`diagnostic-model-request-provenance.ts` and `diagnostic-model-request.ts`.
+
+Core model-request lifecycle binds:
+
+```
+exact event object identity
++
+exact owner generation
++
+phase
+```
+
+through a private `WeakMap<object, provenance>`, then exposes the provenance only through trusted
+diagnostic metadata. The source explicitly states:
+
+> Exact event and generation identity are core-only authority; payload fields cannot forge either.
+
+That is a better implementation precedent for #166770 than inventing a new ownership mechanism.
+
+### Preferred implementation family
+
+Mirror the model-request pattern for core tool lifecycle:
+
+```ts
+type CoreToolExecutionLifecycleProvenance =
+  | { generation: CoreModelRequestOwnerGeneration; phase: "started" }
+  | { generation: CoreModelRequestOwnerGeneration; phase: "completed" }
+  | { generation: CoreModelRequestOwnerGeneration; phase: "error" }
+  | { generation: CoreModelRequestOwnerGeneration; phase: "blocked" };
+```
+
+The concrete type split can be smaller if start liveness remains separate. The invariant is what
+matters:
+
+- provenance is attached by core runtime code, not accepted from payload fields;
+- terminal provenance carries the same exact owner generation as the admitted embedded run;
+- run-activity consumes the metadata and verifies that generation is still the current exact owner;
+- only `completed` publishes semantic progress;
+- every terminal kind can still retire its own active-tool marker.
+
+This reuses an already-established repository correctness pattern:
+
+```
+model request:
+event identity + generation -> trusted lifecycle accounting
+
+tool execution:
+event identity + generation -> trusted lifecycle accounting
+                                  |
+                                  +-- completed -> semantic progress
+```
+
+### Why this is preferable
+
+It avoids four new failure classes:
+
+1. runId/sessionId reuse accidentally refreshing a successor;
+2. plugin/public payload fields forging authority;
+3. delayed terminal events refreshing a replacement generation;
+4. worker-only coverage that misses the native embedded tool path from #166770.
+
+This is now the strongest candidate implementation direction found in the source review.

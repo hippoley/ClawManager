@@ -6,23 +6,16 @@ This harness evaluates whether an authorization/revocation flow has actually rea
 
 It is intentionally framework-neutral.
 
-A runtime does not need to adopt a specific SDK. It only needs to export a normalized trace of:
-- authorization state changes;
-- derived credentials / queued work;
-- consequential sinks;
-- revocation observations;
-- committed effects.
+A runtime does not need to adopt a specific SDK. It only needs to export a normalized trace of authorization state, revocation state, consequential sinks, and committed effects.
 
-The harness then classifies the observed closure state as:
+The harness classifies the observed closure state as:
 
-- CLOSED — every declared consequential path is proven closed and no prohibited effect committed after revocation became effective.
+- CLOSED — every declared consequential path is proven closed and no prohibited effect committed after revocation became effective at its sink.
 - PARTIAL — at least one path is proven closed, but at least one declared path remains open.
 - UNKNOWN — the evidence is insufficient to prove closure or an open path.
-- VIOLATION — a consequential effect committed after the relevant revocation was effective for that path.
+- VIOLATION — a consequential effect committed after revocation became effective at that sink.
 
-## Why this exists
-
-Across independent systems the same failure shape keeps recurring:
+## Core distinction
 
 historically valid authorization artifact
 !=
@@ -32,18 +25,20 @@ and:
 
 revocation recorded at authority
 !=
-revocation enforced at consequential sink
+revocation effective at sink
+!=
+closure
 
-The harness is designed to turn that distinction into executable evidence.
+The harness turns those distinctions into executable evidence.
 
-## Minimal trace format
+## Trace model
 
 Each JSON trace contains:
 
-- operation_id: logical operation identity
-- revocation_id: authority transition identity
-- sinks: declared consequential sinks that must close
-- events: ordered evidence records
+- operation_id
+- revocation_id
+- sinks
+- events
 
 Supported event types in v0.1:
 
@@ -51,55 +46,35 @@ Supported event types in v0.1:
 - derived_credential_issued
 - work_queued
 - revocation_recorded
+- revocation_effective
 - sink_closed
 - effect_committed
 - effect_absent
 - evidence_unavailable
 
-Example:
+Important semantics:
 
-```json
-{
-  "operation_id": "pay-42",
-  "revocation_id": "rev-9",
-  "sinks": ["resource-server", "queued-worker"],
-  "events": [
-    {"seq": 1, "type": "authorization_accepted"},
-    {"seq": 2, "type": "work_queued", "sink": "queued-worker"},
-    {"seq": 3, "type": "revocation_recorded"},
-    {"seq": 4, "type": "sink_closed", "sink": "resource-server"},
-    {"seq": 5, "type": "sink_closed", "sink": "queued-worker"}
-  ]
-}
-```
+- revocation_recorded means the authority accepted or recorded the revocation.
+- revocation_effective is sink-specific and means the contract says new consequential effects at that sink are no longer authorized.
+- sink_closed means there is positive closure evidence for that path.
 
-## Semantics
+Do not collapse these facts.
 
-The harness deliberately distinguishes:
+## Propagation windows
 
-revocation request
-!=
-revocation recorded/effective
-!=
-closure
+An effect after revocation_recorded but before revocation_effective at a sink is not automatically a VIOLATION. It may fall inside a documented propagation window.
 
-A trace can only be CLOSED when every declared sink has closure evidence.
-
-A cryptographically valid or unexpired credential is not treated as proof of current authority.
-
-If a consequential effect commits after revocation_recorded and before its sink is closed, the trace is VIOLATION.
+An effect after revocation_effective at that sink is VIOLATION.
 
 UNKNOWN is preferred over inventing success when evidence is missing.
 
 ## Run
 
-Python standard library only:
-
 ```bash
 python conformance/authorization_closure/runner.py   conformance/authorization_closure/fixtures/closed.json
 ```
 
-Run self-tests:
+Run tests:
 
 ```bash
 python -m unittest conformance.authorization_closure.test_runner
@@ -117,7 +92,7 @@ Future adapters can map native events from:
 - MCP gateways;
 - payment or cloud-control systems.
 
-The conformance contract remains stable even if adapter APIs differ.
+The conformance contract should remain stable even if adapter APIs differ.
 
 ## Contribution rule
 
@@ -132,7 +107,9 @@ Do not grow this into an abstract taxonomy.
 ## Current evidence status
 
 - portable invariant: established across multiple runtimes;
-- reference evaluator: this directory;
+- reference evaluator: available;
+- schema: available in this directory;
+- CI self-test: available;
 - real third-party adapter: not yet;
 - independent reuse: not yet;
 - standards adoption: not yet.

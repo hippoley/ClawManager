@@ -121,3 +121,67 @@ These negatives are important: the repair should preserve execution truth, not t
 > **Semantic progress follows validated execution, not the enclosing response's terminal shape.**
 
 This keeps the watchdog aligned with authoritative work that actually settled, while preserving the existing safeguards against incomplete calls, failed tools, stale owners, and delayed diagnostics.
+
+
+## Ownership seam audit
+
+A second source pass narrowed the implementation boundary further.
+
+### Public terminal events do not currently carry exact-owner provenance
+
+`src/infra/diagnostic-tool-execution-liveness.ts` only attaches liveness metadata to
+`tool.execution.started`. The terminal `tool.execution.completed/error/blocked` events do not
+carry the diagnostic embedded-run owner generation.
+
+That means the async listener in `diagnostic-run-activity.ts` cannot safely turn an arbitrary
+queued `tool.execution.completed` event into semantic progress solely from event shape.
+
+### The owner-local path is authoritative but loses terminal status
+
+`markDiagnosticOwnedToolActivity(owner, ...)` validates that
+`activeDiagnosticOwners.get(owner.generation)?.owner === owner`, so it has the exact ownership
+property the repair needs. However, the API currently collapses terminal state to
+`phase: "end"`.
+
+The worker owner maps every non-update tool terminal to that `end` shape:
+
+```ts
+phase: event.payload.phase === "start" ? "start" : "end"
+```
+
+Therefore a safe repair needs to preserve **both** facts at one boundary:
+
+```
+exact current owner
++
+terminal kind === successful completion
+```
+
+### Consequence for the production patch
+
+The smallest trustworthy patch should extend the owner-local tool activity contract rather than
+promoting the unbound async terminal listener.
+
+For example, conceptually:
+
+```ts
+markDiagnosticOwnedToolActivity(owner, {
+  toolName,
+  toolCallId,
+  phase: "start" | "completed" | "error" | "blocked",
+  deadlineAtMs,
+})
+```
+
+and only the `completed` branch should:
+
+1. retire the active-tool marker;
+2. call semantic progress for that exact run owner;
+3. clear repeated-request stagnation evidence.
+
+`error` and `blocked` should retire active work without claiming semantic progress.
+
+The exact field names can follow the existing worker live-event terminal vocabulary; the important
+part is not to invent a second ownership system or infer success from the later model response.
+
+This is now the preferred patch direction over modifying `isSemanticModelCallResult()`.

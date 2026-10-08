@@ -239,3 +239,39 @@ Next identity upgrade trigger:
 - contributor implements the probe/test;
 - issue is incorporated into docs/contract/tests;
 - or the same conformance vector is reused by another runtime.
+
+
+---
+
+## 2026-10-08 executable-model update
+
+Durable Authority Continuity has now advanced one step beyond prose/vector design.
+
+New executable artifact:
+- `tools/durable_authority_reference_model.py`
+
+Validation:
+- 6/6 reference scenarios passed in local execution.
+- Evidence recorded in `docs/evidence/durable-authority-reference-model-validation.md`.
+
+Current stage:
+
+```
+知 -> stable enough to state the distinctions
+行 -> spec + vectors + executable reference model + Temporal #174
+验 -> internal reference model passed; external runtime behavior still pending
+立 -> not yet
+迁 -> cross-repo public entry started
+制 -> not yet
+```
+
+Identity rule:
+
+Do not treat the executable reference model as external adoption.
+Its value is that a third-party runtime can now compare behavior against a concrete state machine instead of prose alone.
+
+The next legitimate upgrade remains external:
+- maintainer response on Temporal #174;
+- a framework adapter reproducing one DAC scenario;
+- a merged regression or documented contract;
+- or reuse by a second runtime.

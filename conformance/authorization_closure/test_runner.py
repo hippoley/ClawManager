@@ -12,8 +12,10 @@ class AuthorizationClosureTests(unittest.TestCase):
             "events": [
                 {"seq": 1, "type": "authorization_accepted"},
                 {"seq": 2, "type": "revocation_recorded"},
-                {"seq": 3, "type": "sink_closed", "sink": "rs"},
-                {"seq": 4, "type": "sink_closed", "sink": "worker"},
+                {"seq": 3, "type": "revocation_effective", "sink": "rs"},
+                {"seq": 4, "type": "sink_closed", "sink": "rs"},
+                {"seq": 5, "type": "revocation_effective", "sink": "worker"},
+                {"seq": 6, "type": "sink_closed", "sink": "worker"},
             ],
         })
         self.assertEqual(result.verdict, Verdict.CLOSED)
@@ -25,7 +27,8 @@ class AuthorizationClosureTests(unittest.TestCase):
             "sinks": ["rs", "worker"],
             "events": [
                 {"seq": 1, "type": "revocation_recorded"},
-                {"seq": 2, "type": "sink_closed", "sink": "rs"},
+                {"seq": 2, "type": "revocation_effective", "sink": "rs"},
+                {"seq": 3, "type": "sink_closed", "sink": "rs"},
             ],
         })
         self.assertEqual(result.verdict, Verdict.PARTIAL)
@@ -42,14 +45,28 @@ class AuthorizationClosureTests(unittest.TestCase):
         })
         self.assertEqual(result.verdict, Verdict.UNKNOWN)
 
-    def test_violation_when_effect_commits_after_revocation(self):
+    def test_effect_after_record_before_sink_effective_is_not_violation(self):
+        result = evaluate({
+            "operation_id": "op-window",
+            "revocation_id": "rev-window",
+            "sinks": ["payment"],
+            "events": [
+                {"seq": 1, "type": "revocation_recorded"},
+                {"seq": 2, "type": "effect_committed", "sink": "payment"},
+                {"seq": 3, "type": "revocation_effective", "sink": "payment"},
+                {"seq": 4, "type": "sink_closed", "sink": "payment"},
+            ],
+        })
+        self.assertEqual(result.verdict, Verdict.CLOSED)
+
+    def test_violation_when_effect_commits_after_sink_revocation_effective(self):
         result = evaluate({
             "operation_id": "op-4",
             "revocation_id": "rev-4",
             "sinks": ["payment"],
             "events": [
-                {"seq": 1, "type": "authorization_accepted"},
-                {"seq": 2, "type": "revocation_recorded"},
+                {"seq": 1, "type": "revocation_recorded"},
+                {"seq": 2, "type": "revocation_effective", "sink": "payment"},
                 {"seq": 3, "type": "effect_committed", "sink": "payment"},
             ],
         })
@@ -64,7 +81,8 @@ class AuthorizationClosureTests(unittest.TestCase):
             "events": [
                 {"seq": 1, "type": "effect_committed", "sink": "payment"},
                 {"seq": 2, "type": "revocation_recorded"},
-                {"seq": 3, "type": "sink_closed", "sink": "payment"},
+                {"seq": 3, "type": "revocation_effective", "sink": "payment"},
+                {"seq": 4, "type": "sink_closed", "sink": "payment"},
             ],
         })
         self.assertEqual(result.verdict, Verdict.CLOSED)

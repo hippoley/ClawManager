@@ -440,3 +440,49 @@ Escalate from docs clarification to implementation/conformance only if one of th
 5. another runtime reuses the same attribution/authority distinction.
 
 Until then, do not create speculative authorization state inside the Harness.
+
+
+---
+
+## 2026-10-08 promoted implementation node — Open Agent Auth revocation continuity
+
+Target: alibaba/open-agent-auth
+
+New evidence:
+- project docs promise AOAT revocation / immediate invalidation and per-use validation;
+- TokenRevocationService exists with revoke(token) and isRevoked(token);
+- current Resource Server AOAT acceptance path does not visibly consume revocation state;
+- no RS-side introspection / remote revocation-state consumer was found;
+- a private report was submitted through the repository-defined SECURITY.md channel;
+- a cross-service conformance case is now captured in docs/specs/open-agent-auth-aoat-revocation-conformance.md.
+
+Important correction:
+
+The durable repair target is NOT merely "inject the in-memory revocation service into AoatValidator".
+In split AS/RS deployments, authority state must propagate across service boundaries.
+
+Portable contract:
+
+authorization artifact historically valid
+!=
+current resource-server execution authority
+
+and:
+
+cacheable cryptographic validity
+!=
+cacheable revocation/current-authority state
+
+This is the first independent implementation where Runtime Accountability has produced a concrete distributed authorization-continuity finding rather than only conceptual convergence.
+
+Current stage:
+
+source finding = YES
+responsible disclosure = YES
+conformance contract = YES
+maintainer acknowledgment = NOT YET
+maintainer confirmation = NOT YET
+fix/regression landed = NOT YET
+public attribution = NOT YET
+
+Do not count this as cross-repo adoption until external confirmation exists.

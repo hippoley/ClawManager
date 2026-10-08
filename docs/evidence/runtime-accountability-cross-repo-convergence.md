@@ -282,3 +282,53 @@ to:
 ```
 
 Do not upgrade the identity claim until an external maintainer/contributor actually responds, adopts the distinction, requests a probe, or lands a test/contract.
+
+
+---
+
+## 2026-10-08 implementation-level security submission — Open Agent Auth
+
+Target:
+- `alibaba/open-agent-auth`
+
+Source-reviewed finding:
+- documented immediate AOAT revocation / per-use revoked-token validation;
+- concrete `TokenRevocationService.isRevoked(...)` exists;
+- current `DefaultResourceServer -> OperationAuthorizationValidator -> AoatValidator` acceptance path does not visibly consume the revocation service;
+- repository search found no Resource Server / AOAT acceptance caller of `isRevoked(...)`.
+
+Portable invariant:
+
+```
+cryptographically valid + not expired
+!=
+currently authorized
+```
+
+once revocation is part of the runtime contract.
+
+Public evidence artifact:
+- `docs/patches/open-agent-auth-aoat-revocation-continuity-gap.md`
+
+Disclosure path:
+- the repository's `SECURITY.md` requests private vulnerability reports to `open-agent-auth@alibaba-inc.com`;
+- a report was sent on 2026-10-08 through that channel;
+- the report explicitly avoids claiming a confirmed remote exploit and asks whether the docs are ahead of implementation.
+
+Current evidence status:
+
+```
+source gap identified            = YES
+project-defined security channel = YES
+report submitted                 = YES
+acknowledgment / triage          = NOT YET
+maintainer confirmation          = NOT YET
+fix / merged regression          = NOT YET
+public credit / disclosure       = NOT YET
+```
+
+Identity significance:
+
+This is stronger than cross-repo convergence because a runtime-accountability invariant has now produced a concrete security finding in an independent agent-authorization implementation.
+
+Do not count this as third-party adoption until the Open Agent Auth team acknowledges, confirms, fixes, cites, or credits the report.

@@ -1,0 +1,123 @@
+{
+  "spec": "durable-authority-continuity",
+  "version": "0.1",
+  "status": "exploratory",
+  "scenarios": [
+    {
+      "id": "DAC-A",
+      "name": "approval_survives_crash_when_authority_unchanged",
+      "preconditions": {
+        "approval": "approved",
+        "authority_revision": "r1",
+        "execution_generation": "g1",
+        "external_effect": "not_dispatched"
+      },
+      "events": [
+        "worker_crash",
+        "workflow_resume"
+      ],
+      "expected": {
+        "approval_history": "preserved",
+        "new_approval_required": false,
+        "dispatch_allowed": true,
+        "authoritative_generation": "g1_or_reconstructed_equivalent"
+      }
+    },
+    {
+      "id": "DAC-B",
+      "name": "historical_approval_does_not_override_revoked_current_authority",
+      "preconditions": {
+        "approval": "approved",
+        "approval_authority_revision": "r1",
+        "external_effect": "not_dispatched"
+      },
+      "events": [
+        "authority_revision_changes_to_r2_deny",
+        "workflow_resume_or_dispatch_boundary"
+      ],
+      "expected": {
+        "approval_history": "preserved",
+        "dispatch_allowed": false,
+        "historical_approval_rewritten": false,
+        "reason": "current_authority_revalidation_failed"
+      }
+    },
+    {
+      "id": "DAC-C",
+      "name": "timeout_after_external_commit_requires_reconciliation",
+      "preconditions": {
+        "logical_operation_id": "op1",
+        "execution_generation": "g1"
+      },
+      "events": [
+        "external_effect_commits",
+        "caller_times_out",
+        "workflow_resume",
+        "reconcile_committed"
+      ],
+      "expected": {
+        "state_before_reconciliation": "UNKNOWN",
+        "blind_redispatch": false,
+        "new_external_effect": false,
+        "result_source": "reconciled_prior_commit"
+      }
+    },
+    {
+      "id": "DAC-D",
+      "name": "absent_prior_effect_does_not_recreate_revoked_authority",
+      "preconditions": {
+        "logical_operation_id": "op1",
+        "authority_revision": "r1"
+      },
+      "events": [
+        "dispatch_times_out",
+        "reconcile_absent",
+        "authority_revision_changes_to_r2_deny",
+        "workflow_resume"
+      ],
+      "expected": {
+        "new_dispatch_allowed": false,
+        "logical_operation_id_preserved": true
+      }
+    },
+    {
+      "id": "DAC-E",
+      "name": "stale_completion_cannot_overwrite_successor_generation",
+      "preconditions": {
+        "logical_operation_id": "op1",
+        "execution_generation": "g1"
+      },
+      "events": [
+        "g1_dispatched",
+        "g1_marked_superseded",
+        "g2_becomes_current",
+        "g1_late_completion_arrives"
+      ],
+      "expected": {
+        "late_result_auditable": true,
+        "late_result_mutates_current_state": false,
+        "late_result_recreates_authority": false,
+        "current_generation": "g2"
+      }
+    },
+    {
+      "id": "DAC-F",
+      "name": "yielded_continuation_transfers_obligation_custody",
+      "preconditions": {
+        "requester_generation": "g1",
+        "continuation_owner": "child1",
+        "continuation_current": true
+      },
+      "events": [
+        "requester_yields",
+        "requester_active_segment_ends",
+        "settle_wake_or_later_input_arrives"
+      ],
+      "expected": {
+        "valid_admission": true,
+        "obligation_preserved": true,
+        "stale_owner_fences_weakened": false
+      }
+    }
+  ]
+}

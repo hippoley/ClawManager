@@ -1,0 +1,12 @@
+{
+  "operation_id": "payment-42",
+  "revocation_id": "revocation-9",
+  "sinks": ["resource-server", "queued-worker"],
+  "events": [
+    {"seq": 1, "type": "authorization_accepted"},
+    {"seq": 2, "type": "work_queued", "sink": "queued-worker"},
+    {"seq": 3, "type": "revocation_recorded"},
+    {"seq": 4, "type": "sink_closed", "sink": "resource-server"},
+    {"seq": 5, "type": "sink_closed", "sink": "queued-worker"}
+  ]
+}

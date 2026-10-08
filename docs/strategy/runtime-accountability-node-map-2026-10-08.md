@@ -559,3 +559,39 @@ Current infrastructure stage:
 - standards fixture adoption = NOT YET
 
 This is the first concrete transition from self-authored conformance examples to consumption of independent runtime evidence.
+
+
+---
+
+## 2026-10-08 two-system conformance update
+
+Authorization Closure Conformance now consumes evidence from two independent implementations.
+
+OpenClaw:
+- upstream merged regression evidence adapter exists;
+- current mapped verdict: CLOSED for pre-launch revocation before native PTY construction;
+- negative control maps an effect after sink-effective revocation to VIOLATION.
+
+Open Agent Auth:
+- upstream revocation unit tests prove authority-side revoke -> isRevoked;
+- current Resource Server / AOAT source review does not establish sink-side revocation consumption;
+- current mapped verdict: UNKNOWN, intentionally preserving evidence uncertainty.
+
+Infrastructure additions:
+- second independent-system adapter;
+- second adapter regression test;
+- CI workflow covering the core evaluator and both adapters;
+- README now documents the distinction between evidence consumption and external adoption.
+
+Current stage:
+- one conformance layer across two independent systems = YES
+- CLOSED and UNKNOWN both represented from third-party evidence = YES
+- CI gate configured = YES
+- CI run status independently verified through current connector = NOT YET
+- native third-party telemetry = NOT YET
+- external contributor adapter = NOT YET
+- external project adoption = NOT YET
+- standards fixture adoption = NOT YET
+
+Identity significance:
+This is stronger than a one-project adapter because the same evidence vocabulary now separates positive closure proof from unresolved closure across two unrelated systems. It is still not third-party dependence until an external project or contributor consumes the harness itself.

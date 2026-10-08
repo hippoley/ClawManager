@@ -381,3 +381,62 @@ It has a plausible path to:
 - long-horizon role durability.
 
 This is the current highest-upside early node for the Runtime Accountability program.
+
+
+---
+
+## 2026-10-08 promoted seam — Principal Attribution vs Execution Authorization
+
+Public Temporal documentation issue:
+- https://github.com/temporalio/documentation/issues/5451
+
+Current Temporal primitives already separate three useful mechanisms:
+
+```
+API authorization
+-> Authorizer / ClaimMapper
+
+history attribution
+-> Principal Attribution
+
+application metadata propagation
+-> Context Propagation / Interceptors
+```
+
+The new public clarification asks Temporal to make one non-equivalence explicit:
+
+```
+Principal Attribution
+!= propagated application identity
+!= current authorization for an external side effect
+```
+
+Why this is a better early node than pushing Agent Harness #174:
+
+- it maps onto real existing Temporal primitives;
+- it does not invent a revocation surface that the Harness does not have;
+- it sits directly beside the announced agent-security / identity-propagation direction;
+- it can mature naturally into runtime conformance if a true execution-authorization API appears.
+
+Current evidence stage:
+
+```
+existing public primitives       = YES
+public cross-repo contract issue = YES (#5451)
+maintainer response              = NOT YET
+docs clarification merged        = NOT YET
+runtime authorization API        = NOT YET
+cross-runtime conformance reuse  = NOT YET
+```
+
+### Enter deeper only on external signal
+
+Escalate from docs clarification to implementation/conformance only if one of these occurs:
+
+1. Temporal maintainers confirm the distinction and identify an owning API;
+2. Oso/Temporal publishes an agent authorization/identity propagation SDK surface;
+3. Principal/identity metadata becomes consumable at Activity/tool execution for enforcement;
+4. a concrete revocation/replay bug demonstrates the gap;
+5. another runtime reuses the same attribution/authority distinction.
+
+Until then, do not create speculative authorization state inside the Harness.

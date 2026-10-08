@@ -518,3 +518,44 @@ conformance appendix accepted = NOT YET
 
 Identity significance:
 This is the first step from cross-repo runtime/accountability work toward external protocol/standards participation. It is only an entry signal until a standards author or maintainer actually responds or consumes the material.
+
+
+---
+
+## 2026-10-08 infrastructure update — first independent-runtime evidence adapter
+
+Authorization Closure Conformance now has its first framework-specific evidence adapter.
+
+Target:
+- openclaw/openclaw PR #166901
+- landed commit 301e372903de4e9e04e17da018a1ac2ffdb4c2ff
+- evidence owner: src/agents/bash-tools.exec-launch-policy.integration.test.ts
+
+New artifacts:
+- conformance/authorization_closure/adapters/openclaw_exec_launch_policy.py
+- conformance/authorization_closure/adapters/fixtures/openclaw-166901-gateway-pty-before.json
+- conformance/authorization_closure/adapters/test_openclaw_exec_launch_policy.py
+
+Validated chain:
+OpenClaw merged regression observation
+-> evidence adapter
+-> normalized closure trace
+-> conformance runner
+-> CLOSED
+
+Negative control:
+A pre-launch revocation observation with a native launch / committed marker maps to VIOLATION.
+
+Important distinction:
+This is an evidence adapter over an independent runtime's merged regression. It is NOT yet native OpenClaw telemetry, and OpenClaw has NOT adopted this harness.
+
+Current infrastructure stage:
+- framework-neutral evaluator = YES
+- synthetic fixtures = YES
+- independent-runtime evidence adapter = YES
+- adapter regression test = YES
+- native third-party telemetry adapter = NOT YET
+- external project adoption = NOT YET
+- standards fixture adoption = NOT YET
+
+This is the first concrete transition from self-authored conformance examples to consumption of independent runtime evidence.

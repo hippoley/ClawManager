@@ -39,9 +39,7 @@ class AuthorizationClosureTests(unittest.TestCase):
             "operation_id": "op-3",
             "revocation_id": "rev-3",
             "sinks": ["rs"],
-            "events": [
-                {"seq": 1, "type": "authorization_accepted"},
-            ],
+            "events": [{"seq": 1, "type": "authorization_accepted"}],
         })
         self.assertEqual(result.verdict, Verdict.UNKNOWN)
 

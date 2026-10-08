@@ -1,0 +1,22 @@
+name: authorization-closure-conformance
+
+on:
+  push:
+    paths:
+      - "conformance/authorization_closure/**"
+  pull_request:
+    paths:
+      - "conformance/authorization_closure/**"
+  workflow_dispatch:
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run authorization closure contract tests
+        run: |
+          python -m unittest             conformance.authorization_closure.test_runner             conformance.authorization_closure.adapters.test_openclaw_exec_launch_policy             conformance.authorization_closure.adapters.test_open_agent_auth_revocation

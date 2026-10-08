@@ -40,15 +40,13 @@ def evaluate(trace: dict[str, Any]) -> Evaluation:
     events = sorted(trace.get("events") or [], key=lambda e: e["seq"])
 
     if not sinks:
-        return Evaluation(
-            Verdict.UNKNOWN, (), (), (), (),
-            "no consequential sinks declared",
-        )
+        return Evaluation(Verdict.UNKNOWN, (), (), (), (), "no consequential sinks declared")
 
-    revoked_seq: int | None = None
+    revocation_recorded_seq: int | None = None
+    effective_at: dict[str, int] = {}
     closed_at: dict[str, int] = {}
     evidence_unavailable: set[str] = set()
-    effect_after_revocation: dict[str, int] = {}
+    violating: set[str] = set()
     observed_sinks: set[str] = set()
 
     for event in events:
@@ -60,8 +58,12 @@ def evaluate(trace: dict[str, Any]) -> Evaluation:
             observed_sinks.add(sink)
 
         if etype == "revocation_recorded":
-            if revoked_seq is None:
-                revoked_seq = seq
+            if revocation_recorded_seq is None:
+                revocation_recorded_seq = seq
+            continue
+
+        if etype == "revocation_effective" and sink in sinks:
+            effective_at[sink] = seq
             continue
 
         if etype == "sink_closed" and sink in sinks:
@@ -72,12 +74,12 @@ def evaluate(trace: dict[str, Any]) -> Evaluation:
             evidence_unavailable.add(sink)
             continue
 
-        if etype == "effect_committed" and sink in sinks and revoked_seq is not None:
-            close_seq = closed_at.get(sink)
-            if seq > revoked_seq and (close_seq is None or seq < close_seq):
-                effect_after_revocation[sink] = seq
+        if etype == "effect_committed" and sink in sinks:
+            effective_seq = effective_at.get(sink)
+            if effective_seq is not None and seq > effective_seq:
+                violating.add(sink)
 
-    if revoked_seq is None:
+    if revocation_recorded_seq is None:
         return Evaluation(
             Verdict.UNKNOWN,
             tuple(sorted(closed_at)),
@@ -87,7 +89,6 @@ def evaluate(trace: dict[str, Any]) -> Evaluation:
             "no authoritative revocation_recorded event",
         )
 
-    violating = set(effect_after_revocation)
     if violating:
         return Evaluation(
             Verdict.VIOLATION,
@@ -95,7 +96,7 @@ def evaluate(trace: dict[str, Any]) -> Evaluation:
             tuple(sorted(sinks - set(closed_at))),
             tuple(sorted(evidence_unavailable)),
             tuple(sorted(violating)),
-            "consequential effect committed after revocation and before sink closure",
+            "consequential effect committed after revocation became effective at its sink",
         )
 
     closed = set(closed_at)

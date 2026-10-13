@@ -37,7 +37,16 @@ class Evaluation:
 
 def evaluate(trace: dict[str, Any]) -> Evaluation:
     sinks = set(trace.get("sinks") or [])
-    events = sorted(trace.get("events") or [], key=lambda e: e["seq"])
+    raw_events = trace.get("events") or []
+    if (
+        not isinstance(raw_events, list)
+        or any(not isinstance(e, dict) or type(e.get("seq")) is not int for e in raw_events)
+        or len({e["seq"] for e in raw_events}) != len(raw_events)
+        or any(e["seq"] <= 0 for e in raw_events)
+    ):
+        return Evaluation(Verdict.UNKNOWN, (), (), tuple(sorted(sinks)), (),
+                          "invalid or ambiguous event sequence")
+    events = sorted(raw_events, key=lambda e: e["seq"])
 
     if not sinks:
         return Evaluation(Verdict.UNKNOWN, (), (), (), (), "no consequential sinks declared")
@@ -48,6 +57,7 @@ def evaluate(trace: dict[str, Any]) -> Evaluation:
     evidence_unavailable: set[str] = set()
     violating: set[str] = set()
     observed_sinks: set[str] = set()
+    invalid_closure: set[str] = set()
 
     for event in events:
         etype = event.get("type")
@@ -63,11 +73,21 @@ def evaluate(trace: dict[str, Any]) -> Evaluation:
             continue
 
         if etype == "revocation_effective" and sink in sinks:
-            effective_at[sink] = seq
+            if revocation_recorded_seq is None or seq <= revocation_recorded_seq:
+                invalid_closure.add(sink)
+            else:
+                effective_at[sink] = seq
             continue
 
         if etype == "sink_closed" and sink in sinks:
-            closed_at[sink] = seq
+            if (
+                revocation_recorded_seq is None
+                or sink not in effective_at
+                or seq <= effective_at[sink]
+            ):
+                invalid_closure.add(sink)
+            else:
+                closed_at[sink] = seq
             continue
 
         if etype == "evidence_unavailable" and sink in sinks:
@@ -99,9 +119,9 @@ def evaluate(trace: dict[str, Any]) -> Evaluation:
             "consequential effect committed after revocation became effective at its sink",
         )
 
-    closed = set(closed_at)
+    closed = set(closed_at) - evidence_unavailable - invalid_closure
     remaining = sinks - closed
-    unknown = remaining & evidence_unavailable
+    unknown = remaining & (evidence_unavailable | invalid_closure)
     open_sinks = remaining - unknown
 
     if closed == sinks:

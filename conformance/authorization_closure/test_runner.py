@@ -86,5 +86,54 @@ class AuthorizationClosureTests(unittest.TestCase):
         self.assertEqual(result.verdict, Verdict.CLOSED)
 
 
+    def test_closed_without_effective_is_unknown(self):
+        result = evaluate({"sinks": ["rs"], "events": [
+            {"seq": 1, "type": "revocation_recorded"},
+            {"seq": 2, "type": "sink_closed", "sink": "rs"},
+        ]})
+        self.assertEqual(result.verdict, Verdict.UNKNOWN)
+
+    def test_closed_before_effective_is_unknown(self):
+        result = evaluate({"sinks": ["rs"], "events": [
+            {"seq": 1, "type": "revocation_recorded"},
+            {"seq": 2, "type": "sink_closed", "sink": "rs"},
+            {"seq": 3, "type": "revocation_effective", "sink": "rs"},
+        ]})
+        self.assertEqual(result.verdict, Verdict.UNKNOWN)
+
+    def test_effective_before_record_is_unknown(self):
+        result = evaluate({"sinks": ["rs"], "events": [
+            {"seq": 1, "type": "revocation_effective", "sink": "rs"},
+            {"seq": 2, "type": "revocation_recorded"},
+            {"seq": 3, "type": "sink_closed", "sink": "rs"},
+        ]})
+        self.assertEqual(result.verdict, Verdict.UNKNOWN)
+
+    def test_unavailable_overrides_closure(self):
+        result = evaluate({"sinks": ["rs"], "events": [
+            {"seq": 1, "type": "revocation_recorded"},
+            {"seq": 2, "type": "revocation_effective", "sink": "rs"},
+            {"seq": 3, "type": "evidence_unavailable", "sink": "rs"},
+            {"seq": 4, "type": "sink_closed", "sink": "rs"},
+        ]})
+        self.assertEqual(result.verdict, Verdict.UNKNOWN)
+
+    def test_duplicate_sequence_rejected(self):
+        result = evaluate({"sinks": ["rs"], "events": [
+            {"seq": 1, "type": "revocation_recorded"},
+            {"seq": 2, "type": "revocation_effective", "sink": "rs"},
+            {"seq": 2, "type": "sink_closed", "sink": "rs"},
+        ]})
+        self.assertEqual(result.verdict, Verdict.UNKNOWN)
+
+    def test_boolean_sequence_rejected(self):
+        result = evaluate({"sinks": ["rs"], "events": [
+            {"seq": True, "type": "revocation_recorded"},
+            {"seq": 2, "type": "revocation_effective", "sink": "rs"},
+            {"seq": 3, "type": "sink_closed", "sink": "rs"},
+        ]})
+        self.assertEqual(result.verdict, Verdict.UNKNOWN)
+
+
 if __name__ == "__main__":
     unittest.main()

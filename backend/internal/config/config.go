@@ -269,16 +269,16 @@ type LoggingConfig struct {
 }
 
 type ObjectStorageConfig struct {
-	Endpoint       string `yaml:"endpoint"`
-	Region         string `yaml:"region"`
-	AccessKey      string `yaml:"accessKey"`
-	SecretKey      string `yaml:"secretKey"`
-	Bucket         string `yaml:"bucket"`
-	UseSSL         bool   `yaml:"useSSL"`
-	BasePath       string `yaml:"basePath"`
-	ForcePathStyle bool   `yaml:"forcePathStyle"`
+	Endpoint         string `yaml:"endpoint"`
+	Region           string `yaml:"region"`
+	AccessKey        string `yaml:"accessKey"`
+	SecretKey        string `yaml:"secretKey"`
+	Bucket           string `yaml:"bucket"`
+	UseSSL           bool   `yaml:"useSSL"`
+	BasePath         string `yaml:"basePath"`
+	ForcePathStyle   bool   `yaml:"forcePathStyle"`
 	BucketLookupMode string `yaml:"bucketLookupMode"` // path (default), auto, dns
-	LocalFallback  string `yaml:"localFallback"`
+	LocalFallback    string `yaml:"localFallback"`
 }
 
 type SkillScannerConfig struct {

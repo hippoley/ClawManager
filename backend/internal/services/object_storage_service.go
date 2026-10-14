@@ -31,14 +31,15 @@ type objectStorageService struct {
 // deployments. Users can explicitly select "auto" or "dns" for providers
 // requiring virtual-host-style addressing (e.g. Tencent COS).
 func bucketLookupMode(cfg config.ObjectStorageConfig) minio.BucketLookupType {
-    switch strings.ToLower(strings.TrimSpace(cfg.BucketLookupMode)) {
-    case "auto":
-        return minio.BucketLookupAuto
-    case "dns":
-        return minio.BucketLookupDNS
-    default:
-        return minio.BucketLookupPath
-    }
+	// Keep the legacy default for MinIO deployments which omit this setting.
+	switch strings.ToLower(strings.TrimSpace(cfg.BucketLookupMode)) {
+	case "auto":
+		return minio.BucketLookupAuto
+	case "dns":
+		return minio.BucketLookupDNS
+	default:
+		return minio.BucketLookupPath
+	}
 }
 
 func NewObjectStorageService(cfg config.ObjectStorageConfig) (ObjectStorageService, error) {
@@ -57,7 +58,7 @@ func NewObjectStorageService(cfg config.ObjectStorageConfig) (ObjectStorageServi
 	if mode := strings.ToLower(strings.TrimSpace(cfg.BucketLookupMode)); mode != "" && mode != "path" && mode != "auto" && mode != "dns" {
 		return nil, fmt.Errorf("unsupported object storage bucketLookupMode %q (want path, auto, or dns)", cfg.BucketLookupMode)
 	}
-	if cfg.ForcePathStyle && cfg.BucketLookupMode != "" && !strings.EqualFold(strings.TrimSpace(cfg.BucketLookupMode), "path") {
+	if cfg.ForcePathStyle && strings.TrimSpace(cfg.BucketLookupMode) != "" && !strings.EqualFold(strings.TrimSpace(cfg.BucketLookupMode), "path") {
 		return nil, fmt.Errorf("forcePathStyle conflicts with bucketLookupMode %q", cfg.BucketLookupMode)
 	}
 	client, err := minio.New(cfg.Endpoint, &minio.Options{

@@ -59,6 +59,9 @@ func TestObjectStorageBucketLookupValidation(t *testing.T) {
 	}
 }
 
+// Verify explicit modes with exact address expectations. Auto is intentionally
+// implementation-defined by the MinIO SDK and must not be treated as a
+// contractual path-style default for non-AWS endpoints.
 func TestObjectStorageSDKPresignedAddressing(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -69,7 +72,6 @@ func TestObjectStorageSDKPresignedAddressing(t *testing.T) {
 		{"legacy path default", "", "s3.example.test", "/fixture-bucket/receipt.json"},
 		{"explicit path", "path", "s3.example.test", "/fixture-bucket/receipt.json"},
 		{"explicit dns", "dns", "fixture-bucket.s3.example.test", "/receipt.json"},
-		{"auto non-AWS endpoint", "auto", "s3.example.test", "/fixture-bucket/receipt.json"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -97,5 +99,28 @@ func TestObjectStorageSDKPresignedAddressing(t *testing.T) {
 				t.Fatalf("unexpected presign algorithm: %s", u.Query().Get("X-Amz-Algorithm"))
 			}
 		})
+	}
+}
+
+func TestObjectStorageSDKAutoGeneratesSignedURL(t *testing.T) {
+	svc, err := NewObjectStorageService(config.ObjectStorageConfig{
+		Endpoint: "s3.example.test",
+		Region: "us-east-1",
+		AccessKey: "test-access",
+		SecretKey: "test-secret",
+		Bucket: "fixture-bucket",
+		UseSSL: true,
+		BucketLookupMode: "auto",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := svc.(*objectStorageService).minioClient
+	u, err := client.PresignedGetObject(context.Background(), "fixture-bucket", "receipt.json", time.Minute, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Host == "" || u.Path == "" || !strings.HasPrefix(u.Query().Get("X-Amz-Algorithm"), "AWS4-") {
+		t.Fatalf("invalid SDK auto-mode signed URL: %s", u.String())
 	}
 }

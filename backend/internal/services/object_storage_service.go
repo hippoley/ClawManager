@@ -51,16 +51,17 @@ func NewObjectStorageService(cfg config.ObjectStorageConfig) (ObjectStorageServi
 	if service.localPath == "" {
 		service.localPath = ".data/object-storage"
 	}
+	mode := strings.ToLower(strings.TrimSpace(cfg.BucketLookupMode))
+	if mode != "" && mode != "path" && mode != "auto" && mode != "dns" {
+		return nil, fmt.Errorf("unsupported object storage bucketLookupMode %q (want path, auto, or dns)", cfg.BucketLookupMode)
+	}
+	if cfg.ForcePathStyle && mode != "" && mode != "path" {
+		return nil, fmt.Errorf("forcePathStyle conflicts with bucketLookupMode %q", cfg.BucketLookupMode)
+	}
 	if strings.TrimSpace(cfg.Endpoint) == "" {
 		return service, nil
 	}
 
-	if mode := strings.ToLower(strings.TrimSpace(cfg.BucketLookupMode)); mode != "" && mode != "path" && mode != "auto" && mode != "dns" {
-		return nil, fmt.Errorf("unsupported object storage bucketLookupMode %q (want path, auto, or dns)", cfg.BucketLookupMode)
-	}
-	if cfg.ForcePathStyle && strings.TrimSpace(cfg.BucketLookupMode) != "" && !strings.EqualFold(strings.TrimSpace(cfg.BucketLookupMode), "path") {
-		return nil, fmt.Errorf("forcePathStyle conflicts with bucketLookupMode %q", cfg.BucketLookupMode)
-	}
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure:       cfg.UseSSL,

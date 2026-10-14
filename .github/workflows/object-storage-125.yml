@@ -37,7 +37,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Enforce formatting
         run: |
-          files=(internal/services/object_storage_service.go internal/services/object_storage_service_test.go internal/config/config.go)
+          files=(internal/services/object_storage_service.go internal/services/object_storage_service_test.go internal/config/config.go internal/config/object_storage_bucket_lookup_test.go)
           unformatted=$(gofmt -l "${files[@]}")
           if [ -n "$unformatted" ]; then
             echo "$unformatted"

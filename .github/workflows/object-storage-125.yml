@@ -43,5 +43,16 @@ jobs:
             echo "$unformatted"
             exit 1
           fi
-      - name: Run object storage regression
-        run: go test ./internal/services ./internal/config -count=1
+      - name: Run object storage regression with JSON receipt
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./internal/services ./internal/config -count=1 -json | tee ../object-storage-125-test.jsonl
+      - name: Upload regression receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: object-storage-125-regression
+          path: object-storage-125-test.jsonl
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,47 @@
+name: Object storage S3 addressing regression
+
+on:
+  push:
+    branches:
+      - fix/125-object-storage-bucket-lookup
+    paths:
+      - "backend/internal/services/object_storage_service*.go"
+      - "backend/internal/config/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/object-storage-125.yml"
+  pull_request:
+    paths:
+      - "backend/internal/services/object_storage_service*.go"
+      - "backend/internal/config/**"
+      - "backend/go.mod"
+      - "backend/go.sum"
+      - ".github/workflows/object-storage-125.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Enforce formatting
+        run: |
+          files=(internal/services/object_storage_service.go internal/services/object_storage_service_test.go internal/config/config.go)
+          unformatted=$(gofmt -l "${files[@]}")
+          if [ -n "$unformatted" ]; then
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Run object storage regression
+        run: go test ./internal/services ./internal/config -count=1

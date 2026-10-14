@@ -36,6 +36,9 @@ func TestObjectStorageBucketLookupValidation(t *testing.T) {
 		wantError bool
 	}{
 		{"invalid", config.ObjectStorageConfig{Endpoint: "localhost:9000", BucketLookupMode: "bad"}, true},
+		{"invalid even with local fallback", config.ObjectStorageConfig{BucketLookupMode: "bad"}, true},
+		{"conflict even with local fallback", config.ObjectStorageConfig{ForcePathStyle: true, BucketLookupMode: "dns"}, true},
+		{"local fallback without mode", config.ObjectStorageConfig{}, false},
 		{"conflicting", config.ObjectStorageConfig{Endpoint: "localhost:9000", ForcePathStyle: true, BucketLookupMode: "dns"}, true},
 		{"conflicting auto", config.ObjectStorageConfig{Endpoint: "localhost:9000", ForcePathStyle: true, BucketLookupMode: "auto"}, true},
 		{"explicit path consistent", config.ObjectStorageConfig{Endpoint: "localhost:9000", ForcePathStyle: true, BucketLookupMode: "path"}, false},

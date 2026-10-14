@@ -277,6 +277,7 @@ type ObjectStorageConfig struct {
 	UseSSL         bool   `yaml:"useSSL"`
 	BasePath       string `yaml:"basePath"`
 	ForcePathStyle bool   `yaml:"forcePathStyle"`
+	BucketLookupMode string `yaml:"bucketLookupMode"` // path (default), auto, dns
 	LocalFallback  string `yaml:"localFallback"`
 }
 

@@ -1,7 +1,10 @@
 package services
 
 import (
+	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"clawreef/internal/config"
 	"github.com/minio/minio-go/v7"
@@ -51,6 +54,47 @@ func TestObjectStorageBucketLookupValidation(t *testing.T) {
 			_, err := NewObjectStorageService(tc.cfg)
 			if (err != nil) != tc.wantError {
 				t.Fatalf("NewObjectStorageService error = %v; wantError = %v", err, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestObjectStorageSDKPresignedAddressing(t *testing.T) {
+	cases := []struct {
+		name     string
+		mode     string
+		wantHost string
+		wantPath string
+	}{
+		{"legacy path default", "", "s3.example.test", "/fixture-bucket/receipt.json"},
+		{"explicit path", "path", "s3.example.test", "/fixture-bucket/receipt.json"},
+		{"explicit dns", "dns", "fixture-bucket.s3.example.test", "/receipt.json"},
+		{"auto non-AWS endpoint", "auto", "s3.example.test", "/fixture-bucket/receipt.json"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, err := NewObjectStorageService(config.ObjectStorageConfig{
+				Endpoint: "s3.example.test",
+				Region: "us-east-1",
+				AccessKey: "test-access",
+				SecretKey: "test-secret",
+				Bucket: "fixture-bucket",
+				UseSSL: true,
+				BucketLookupMode: tc.mode,
+			})
+			if err != nil {
+				t.Fatalf("new client: %v", err)
+			}
+			client := svc.(*objectStorageService).minioClient
+			u, err := client.PresignedGetObject(context.Background(), "fixture-bucket", "receipt.json", time.Minute, nil)
+			if err != nil {
+				t.Fatalf("presign with SDK: %v", err)
+			}
+			if u.Host != tc.wantHost || u.Path != tc.wantPath {
+				t.Fatalf("presigned address = %s%s, want %s%s", u.Host, u.Path, tc.wantHost, tc.wantPath)
+			}
+			if !strings.HasPrefix(u.Query().Get("X-Amz-Algorithm"), "AWS4-") {
+				t.Fatalf("unexpected presign algorithm: %s", u.Query().Get("X-Amz-Algorithm"))
 			}
 		})
 	}
